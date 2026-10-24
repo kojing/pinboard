@@ -1,0 +1,21 @@
+board page 200 1596576
+  __PWS_INITIAL_PROPS__ 1
+  __PWS_DATA__ 1
+  initialReduxState 1
+  i.pinimg.com/originals 99
+  i.pinimg.com/736x 98
+  "board_id" 0
+  appVersion 1
+  pin ids 0
+  appVersion 472496f
+  board id undefined
+rss 200 26 items
+feed plain (empty) 403 - Invalid Resource Request
+feed plain /pinkojing/ft/ 403 - Invalid Resource Request
+feed pws (empty) 400 0 bm= {"resource_response":{"error":{"status":"failure","http_status":400,"code":20,"m
+feed pws /pinkojing/ft/ 400 0 bm= {"resource_response":{"error":{"status":"failure","http_status":400,"code":20,"m
+feed pws+app (empty) 400 0 bm= {"resource_response":{"error":{"status":"failure","http_status":400,"code":20,"m
+feed pws+app /pinkojing/ft/ 400 0 bm= {"resource_response":{"error":{"status":"failure","http_status":400,"code":20,"m
+feed pws+app+src (empty) 400 0 bm= {"resource_response":{"error":{"status":"failure","http_status":400,"code":20,"m
+feed pws+app+src /pinkojing/ft/ 400 0 bm= {"resource_response":{"error":{"status":"failure","http_status":400,"code":20,"m
+cookies csrftoken,_pinterest_sess,_auth,_routing_id,tst
