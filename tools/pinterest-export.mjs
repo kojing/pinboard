@@ -4,7 +4,8 @@
 // リファレンスボードの「インポート」にそのまま読み込める JSON を data/pinterest/<ユーザー>.json に書く。
 // ログインはしないので、非公開ボード・秘密のボードは含まれない。
 //
-//   node tools/pinterest-export.mjs [ユーザー名]   (既定: pinkojing)
+//   node tools/pinterest-export.mjs [ユーザー名] [ボード名,ボード名…]   (既定: pinkojing の ft)
+//   ボードはボード名かURLの最後の部分(/pinkojing/ft/ なら ft)で指定。大文字小文字は区別しない。* で全部。
 //
 // 出力 { app, source, user, exportedAt, boards, tags, items }
 //   tags  … ボード名(セクションのピンは「ボード名/セクション名」も付く)
@@ -13,6 +14,7 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 
 const USER = process.argv[2] || process.env.PINTEREST_USER || 'pinkojing';
+const BOARDS = (process.argv[3] || process.env.PINTEREST_BOARDS || 'ft').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const OUT = `data/pinterest/${USER}.json`;
 const MEMO_MAX = 140;          // ボードの保存領域(約480KB)に収めるためメモは短くする
 const CAPACITY = 16 * 30000;
@@ -114,7 +116,14 @@ async function main() {
     username: USER, page_size: 50, privacy_filter: 'all', sort: 'last_pinned_to', field_set_key: 'profile_grid_item', include_archived: true
   }, `/${USER}/_saved/`)).filter((b) => b?.id && b.url && (!b.type || b.type === 'board'));
   if (!boards.length) throw new Error(`公開ボードが見つかりませんでした(ユーザー名 ${USER})`);
-  console.log(`ボード ${boards.length} 件`);
+  console.log(`公開ボード ${boards.length} 件: ${boards.map((b) => `${b.name}(${b.url})`).join(', ')}`);
+  if (!BOARDS.includes('*')) {
+    const slug = (b) => String(b.url).replace(/\/$/, '').split('/').pop().toLowerCase();
+    const picked = boards.filter((b) => BOARDS.includes(String(b.name || '').trim().toLowerCase()) || BOARDS.includes(slug(b)));
+    if (!picked.length) throw new Error(`指定のボード(${BOARDS.join(', ')})が見つかりませんでした。上の公開ボードの名前で指定してください`);
+    boards.length = 0; boards.push(...picked);
+    console.log(`対象: ${boards.map((b) => b.name).join(', ')}`);
+  }
 
   const byId = new Map(); let skipped = 0;
   const add = (p, tags) => {

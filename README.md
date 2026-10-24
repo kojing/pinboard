@@ -36,7 +36,7 @@ Confluence (Server / Data Center) のページに置く、Pinterest 風のリフ
 
 ## Pinterest からの取り込み
 
-GitHub Actions が Pinterest(pinkojing)の公開ボードを毎週読み、`data/pinterest/pinkojing.json` を更新します。
+GitHub Actions が Pinterest(pinkojing)の ft ボードを毎週読み、`data/pinterest/pinkojing.json` を更新します。
 このJSONをボードの「インポート」に読み込むと、ボード名をタグにして取り込まれます(詳しくは `data/pinterest/README.md`)。
 
 ## 開発

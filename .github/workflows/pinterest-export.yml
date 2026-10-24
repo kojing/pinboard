@@ -7,6 +7,9 @@ on:
       user:
         description: Pinterest のユーザー名
         default: pinkojing
+      boards:
+        description: ボード名(カンマ区切り、* で全部)
+        default: ft
   schedule:
     - cron: '17 18 * * 0'   # 毎週月曜 3:17(日本時間)
   push:
@@ -32,7 +35,7 @@ jobs:
         with:
           node-version: 20
       - name: 書き出し
-        run: node tools/pinterest-export.mjs "${{ github.event.inputs.user || 'pinkojing' }}"
+        run: node tools/pinterest-export.mjs "${{ github.event.inputs.user || 'pinkojing' }}" "${{ github.event.inputs.boards || 'ft' }}"
       - name: 変更をコミット
         run: |
           git add data/pinterest
