@@ -41,6 +41,7 @@ async function resource(name, options, sourceUrl) {
       headers: {
         'User-Agent': UA, Accept: 'application/json, text/javascript, */*; q=0.01', 'Accept-Language': 'ja,en;q=0.8',
         'X-Requested-With': 'XMLHttpRequest', 'X-Pinterest-AppState': 'active', Origin: ORIGIN,
+        'X-Pinterest-PWS-Handler': 'www/[username]/[slug].js', 'X-Pinterest-Source-Url': sourceUrl,
         'X-CSRFToken': jar.get('csrftoken') || '', Referer: ORIGIN + sourceUrl, Cookie: cookieHeader()
       }
     });
@@ -53,6 +54,27 @@ async function resource(name, options, sourceUrl) {
     return { data: rr.data, bookmark: rr.bookmark || j.resource?.options?.bookmarks?.[0] || null };
   }
   throw new Error(`${name} が混み合っていて読めませんでした`);
+}
+// ボードのページ本体に埋め込まれた初期データ(__PWS_INITIAL_PROPS__ など)からボードの情報を探す
+async function boardFromPage(slug) {
+  const res = await fetch(`${ORIGIN}/${USER}/${slug}/`, { headers: { 'User-Agent': UA, Accept: 'text/html', 'Accept-Language': 'ja,en;q=0.8', Cookie: cookieHeader() } });
+  keepCookies(res);
+  if (!res.ok) throw new Error(`ボードのページが HTTP ${res.status}`);
+  const html = await res.text();
+  const want = `/${USER}/${slug}/`.toLowerCase();
+  let found = null;
+  for (const m of html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)) {
+    let j; try { j = JSON.parse(m[1]); } catch { continue; }
+    const stack = [j];
+    while (stack.length && !found) {
+      const o = stack.pop();
+      if (!o || typeof o !== 'object') continue;
+      if (o.type === 'board' && o.id && typeof o.url === 'string' && o.url.toLowerCase() === want) { found = o; break; }
+      for (const v of Object.values(o)) if (v && typeof v === 'object') stack.push(v);
+    }
+    if (found) break;
+  }
+  return found;
 }
 async function paged(name, options, sourceUrl) {
   let bm = null; const all = [], seen = new Set();
@@ -117,8 +139,8 @@ async function main() {
   if (!BOARDS.includes('*')) {
     for (const slug of BOARDS) {
       try {
-        const r = await resource('BoardResource', { slug, username: USER, field_set_key: 'detailed' }, `/${USER}/${slug}/`);
-        if (r.data?.id) boards.push(r.data);
+        const b = await boardFromPage(slug);
+        if (b) boards.push(b); else console.log(`  ${slug} のページにボードの情報が見つかりませんでした`);
       } catch (e) { console.log(`  ${slug} を直接は読めませんでした(${e.message})`); }
     }
   }
