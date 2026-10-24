@@ -35,12 +35,12 @@ async function warmUp() {
   if (!res.ok) throw new Error(`プロフィールページが HTTP ${res.status} を返しました(ユーザー名 ${USER} を確認してください)`);
 }
 async function resource(name, options, sourceUrl) {
-  const url = `${ORIGIN}/resource/${name}/get/?source_url=${encodeURIComponent(sourceUrl)}&data=${encodeURIComponent(JSON.stringify({ options, context: {} }))}&_=${Date.now()}`;
+  const url = `${ORIGIN}/resource/${name}/get/?source_url=&data=${encodeURIComponent(JSON.stringify({ options }))}`;
   for (let t = 0; t < 5; t++) {
     const res = await fetch(url, {
       headers: {
         'User-Agent': UA, Accept: 'application/json, text/javascript, */*; q=0.01', 'Accept-Language': 'ja,en;q=0.8',
-        'X-Requested-With': 'XMLHttpRequest', 'X-Pinterest-AppState': 'active', 'X-Pinterest-Source-Url': sourceUrl,
+        'X-Requested-With': 'XMLHttpRequest', 'X-Pinterest-AppState': 'active', Origin: ORIGIN,
         'X-CSRFToken': jar.get('csrftoken') || '', Referer: ORIGIN + sourceUrl, Cookie: cookieHeader()
       }
     });
@@ -112,18 +112,28 @@ export function toItem(p, tags) {
 async function main() {
   console.log(`Pinterest ${USER} を読み込みます`);
   await warmUp();
-  const boards = (await paged('BoardsResource', {
-    username: USER, page_size: 50, privacy_filter: 'all', sort: 'last_pinned_to', field_set_key: 'profile_grid_item', include_archived: true
-  }, `/${USER}/_saved/`)).filter((b) => b?.id && b.url && (!b.type || b.type === 'board'));
-  if (!boards.length) throw new Error(`公開ボードが見つかりませんでした(ユーザー名 ${USER})`);
-  console.log(`公開ボード ${boards.length} 件: ${boards.map((b) => `${b.name}(${b.url})`).join(', ')}`);
+  // まず指定のボードを直接読む(ボード名がURLと同じ場合)。見つからなければ公開ボードの一覧から探す
+  const boards = [];
   if (!BOARDS.includes('*')) {
-    const slug = (b) => String(b.url).replace(/\/$/, '').split('/').pop().toLowerCase();
-    const picked = boards.filter((b) => BOARDS.includes(String(b.name || '').trim().toLowerCase()) || BOARDS.includes(slug(b)));
-    if (!picked.length) throw new Error(`指定のボード(${BOARDS.join(', ')})が見つかりませんでした。上の公開ボードの名前で指定してください`);
-    boards.length = 0; boards.push(...picked);
-    console.log(`対象: ${boards.map((b) => b.name).join(', ')}`);
+    for (const slug of BOARDS) {
+      try {
+        const r = await resource('BoardResource', { slug, username: USER, field_set_key: 'detailed' }, `/${USER}/${slug}/`);
+        if (r.data?.id) boards.push(r.data);
+      } catch (e) { console.log(`  ${slug} を直接は読めませんでした(${e.message})`); }
+    }
   }
+  if (BOARDS.includes('*') || boards.length < BOARDS.length) {
+    const all = (await paged('BoardsResource', { username: USER, page_size: 25, include_archived: true }, `/${USER}/`))
+      .filter((b) => b?.id && b.url && (!b.type || b.type === 'board'));
+    console.log(`公開ボード ${all.length} 件: ${all.map((b) => `${b.name}(${b.url})`).join(', ')}`);
+    const slug = (b) => String(b.url).replace(/\/$/, '').split('/').pop().toLowerCase();
+    for (const b of all) {
+      if (boards.some((x) => x.id === b.id)) continue;
+      if (BOARDS.includes('*') || BOARDS.includes(String(b.name || '').trim().toLowerCase()) || BOARDS.includes(slug(b))) boards.push(b);
+    }
+  }
+  if (!boards.length) throw new Error(`ボード(${BOARDS.join(', ')})が見つかりませんでした`);
+  console.log(`対象: ${boards.map((b) => `${b.name}(${b.pin_count ?? '?'})`).join(', ')}`);
 
   const byId = new Map(); let skipped = 0;
   const add = (p, tags) => {
@@ -136,16 +146,16 @@ async function main() {
   for (const [i, b] of boards.entries()) {
     const name = String(b.name || b.url).trim();
     const pins = await paged('BoardFeedResource', {
-      board_id: b.id, board_url: b.url, page_size: 100, field_set_key: 'react_grid_pin', filter_section_pins: false, sort: 'default', layout: 'default'
+      board_id: b.id, page_size: 25
     }, b.url);
     pins.forEach((p) => add(p, [name]));
     let secCount = 0;
     if (b.section_count > 0) {
-      const secs = await paged('BoardSectionsResource', { board_id: b.id, page_size: 50 }, b.url);
+      const secs = await paged('BoardSectionsResource', { board_id: b.id }, b.url);
       for (const sec of secs) {
         if (!sec?.id) continue;
         const label = `${name}/${sec.title || sec.slug}`;
-        const sp = await paged('BoardSectionPinsResource', { section_id: sec.id, page_size: 100, field_set_key: 'react_grid_pin' }, `${b.url}${sec.slug || ''}/`);
+        const sp = await paged('BoardSectionPinsResource', { section_id: sec.id, page_size: 25 }, `${b.url}${sec.slug || ''}/`);
         sp.forEach((p) => add(p, [name, label])); secCount += sp.length;
       }
     }
