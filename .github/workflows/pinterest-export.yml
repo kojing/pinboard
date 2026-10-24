@@ -35,8 +35,13 @@ jobs:
         with:
           node-version: 20
       - name: 書き出し
-        run: node tools/pinterest-export.mjs "${{ github.event.inputs.user || 'pinkojing' }}" "${{ github.event.inputs.boards || 'ft' }}"
-      - name: 変更をコミット
+        id: export
+        run: |
+          mkdir -p data/pinterest
+          set -o pipefail
+          node tools/pinterest-export.mjs "${{ github.event.inputs.user || 'pinkojing' }}" "${{ github.event.inputs.boards || 'ft' }}" 2>&1 | tee data/pinterest/last-run.log
+      - name: 変更をコミット(失敗してもログは残す)
+        if: always()
         run: |
           git add data/pinterest
           if git diff --cached --quiet; then echo "変更なし"; exit 0; fi
