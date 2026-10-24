@@ -76,13 +76,20 @@ async function boardFromPage(slug) {
   }
   return found;
 }
-async function paged(name, options, sourceUrl) {
-  let bm = null; const all = [], seen = new Set();
+// expected: 本来の件数(わかる場合)。それより少ないのに「終わり」と返ってきたら、同じページを取り直す
+async function paged(name, options, sourceUrl, expected = 0) {
+  let bm = null, retry = 0; const all = [], seen = new Set();
   for (let n = 0; n < 500; n++) {
     const res = await resource(name, bm ? { ...options, bookmarks: [bm] } : options, sourceUrl);
     const list = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.results) ? res.data.results : [];
+    const end = !res.bookmark || res.bookmark === '-end-' || seen.has(res.bookmark) || !list.length;
+    if (end && expected && all.length + list.length < expected * 0.9 && retry < 4) {
+      retry++; console.log(`  途中で終わりと返ってきたので取り直します(${all.length + list.length}/${expected}、${retry}回目)`);
+      await sleep(3000 * retry); n--; continue;
+    }
+    retry = 0;
     all.push(...list);
-    if (!res.bookmark || res.bookmark === '-end-' || seen.has(res.bookmark) || !list.length) break;
+    if (end) break;
     seen.add(res.bookmark); bm = res.bookmark;
     await sleep(400);
   }
@@ -170,7 +177,7 @@ async function main() {
     const name = String(b.name || b.url).trim();
     const pins = await paged('BoardFeedResource', {
       board_id: b.id, page_size: 25
-    }, b.url);
+    }, b.url, b.pin_count || 0);
     pins.forEach((p) => add(p, [name]));
     let secCount = 0;
     if (b.section_count > 0) {
@@ -194,6 +201,10 @@ async function main() {
   let prev = null; try { prev = JSON.parse(await readFile(OUT, 'utf8')); } catch {}
   if (prev && JSON.stringify(prev.items) === JSON.stringify(items)) {
     console.log(`変化なし(${items.length} 件)`); return;
+  }
+  // 前回より大きく減ったときは、取りこぼしの可能性が高いので上書きしない
+  if (prev?.items?.length && items.length < prev.items.length * 0.8) {
+    throw new Error(`今回 ${items.length} 件で、前回(${prev.items.length} 件)より大きく減ったため書き込みませんでした。Pinterest側の一時的な不調の可能性があります`);
   }
   const out = { app: 'reference-board', source: 'pinterest', user: USER, exportedAt: new Date().toISOString(), boards: summary, items };
   await mkdir('data/pinterest', { recursive: true });
