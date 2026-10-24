@@ -206,7 +206,8 @@ async function main() {
   const video = items.filter((x) => x.kind === 'video').length;
   console.log(`\n${OUT} に ${items.length} 件(画像 ${items.length - video}・動画 ${video})${skipped ? `、読めなかったピン ${skipped} 件` : ''}`);
   console.log(`ボードの保存領域の目安: ${Math.round(bytes / 1024)}KB / ${Math.round(CAPACITY / 1024)}KB(${Math.round(bytes / CAPACITY * 100)}%)`);
-  if (bytes > CAPACITY * 0.9) console.log('※ 1つのボードには入りきりません。ボードを分けて読み込んでください');
+  if (bytes > CAPACITY * 0.97) console.log('※ 1つのボードには入りきりません。ボードを分けて読み込んでください');
+  else if (bytes > CAPACITY * 0.85) console.log('※ 1つのボードに入りますが、残りが少なくなります');
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main().catch((e) => { console.error('止まりました: ' + e.message); process.exit(1); });
