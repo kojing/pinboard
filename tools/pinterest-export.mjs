@@ -116,7 +116,9 @@ export function toItem(p, tags) {
   if (!orig && !mp4) return null;
   const thumb = im['474x'] || im['564x'] || im['736x'] || orig;
   const it = { id: 'p' + p.id, kind: mp4 ? 'video' : 'image', src: mp4 ? mp4.url : orig.url };
-  if (thumb?.url && thumb.url !== it.src) it.thumb = thumb.url;
+  // i.pinimg.com の元画像なら、一覧用(474x)はボード側でURLから作れるので書かない(保存容量の節約)
+  const derivable = /^https:\/\/i\.pinimg\.com\/originals\//.test(it.src) && thumb?.url === it.src.replace('/originals/', '/474x/');
+  if (thumb?.url && thumb.url !== it.src && !derivable) it.thumb = thumb.url;
   const w = mp4 ? mp4.width : orig.width, h = mp4 ? mp4.height : orig.height;
   if (w > 0 && h > 0) { it.w = w; it.h = h; }
   if (/^#[0-9a-f]{6}$/i.test(p.dominant_color || '')) it.c = p.dominant_color;

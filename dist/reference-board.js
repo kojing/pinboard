@@ -451,6 +451,8 @@
   function thumbOf(it, pageId) {
     if (it.att) return attHref(pageId, it.att.t || it.att.n);
     if (it.thumb) return it.thumb;
+    // Pinterest の元画像は、一覧では 474px 幅の版を使う(URLの originals を 474x に置き換えるだけで得られる)
+    if (it.kind === 'image' && /^https:\/\/i\.pinimg\.com\/originals\//.test(it.src || '')) return it.src.replace('/originals/', '/474x/');
     var y = youtubeId(it.src); if (y) return 'https://i.ytimg.com/vi/' + y + '/hqdefault.jpg';
     if (it.kind === 'image') return it.src;
     return null;
