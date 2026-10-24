@@ -34,6 +34,11 @@ Confluence (Server / Data Center) のページに置く、Pinterest 風のリフ
 - 詳細からダウンロード(画像、動画はファイル形式のときのみ)
 - 検索、画像/動画の切り替え、タグで絞り込み、JSON のインポート・エクスポート
 
+## Pinterest からの取り込み
+
+GitHub Actions が Pinterest(pinkojing)の公開ボードを毎週読み、`data/pinterest/pinkojing.json` を更新します。
+このJSONをボードの「インポート」に読み込むと、ボード名をタグにして取り込まれます(詳しくは `data/pinterest/README.md`)。
+
 ## 開発
 
 ソースは `src/` に分けてあり、`build.py` で `dist/` を作ります。
@@ -48,5 +53,6 @@ python3 build.py
 - `src/quick.js` … ブックマークレットと追加画面
 - `src/css.js` … スタイル
 - `src/harness.html`, `src/harness-lc.css` … 動作確認ページ
+- `tools/pinterest-export.mjs` … Pinterest の書き出し(Actions から実行)
 
 `test/` は Playwright のシナリオ。リポジトリ直下で `python3 -m http.server 8765` を起動してから実行します。
