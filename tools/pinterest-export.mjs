@@ -51,6 +51,7 @@ async function resource(name, options, sourceUrl) {
     const j = await res.json();
     const rr = j.resource_response || {};
     if (rr.error) throw new Error(`${name}: ${rr.error.message || rr.error.code || 'エラー'}`);
+    if (process.env.PINTEREST_DEBUG) console.log(`  [debug] ${name} keys=${Object.keys(j).join(',')} rr=${Object.keys(rr).join(',')} rr.bookmark=${String(rr.bookmark).slice(0, 24)} opt.bm=${String(j.resource?.options?.bookmarks?.[0]).slice(0, 24)} n=${Array.isArray(rr.data) ? rr.data.length : typeof rr.data}`);
     return { data: rr.data, bookmark: rr.bookmark || j.resource?.options?.bookmarks?.[0] || null };
   }
   throw new Error(`${name} が混み合っていて読めませんでした`);
