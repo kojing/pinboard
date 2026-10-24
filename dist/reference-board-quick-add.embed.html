@@ -1,0 +1,16 @@
+<!--
+ リファレンスボード 追加用ポップアップページ用 HTMLマクロ (任意・v1.0.0)
+ ボードのページは画像の一覧を読み込むので、ブックマークレットの追加画面を軽くしたいときに使う。
+ 1. 新しいページ(例:「リファレンス追加」)を作り、このHTMLを HTMLマクロに貼る
+ 2. TARGET_PAGE_ID にボードのページID、ASSET_PAGE_ID に JS を添付したページのIDを入れる
+ 3. このページのURLを、ボード側の QUICK_ADD_PAGE_URL に設定してから、ブックマークレットを登録し直す
+ ※ 画像は TARGET_PAGE_ID のページに添付されます
+-->
+<div id="ref-board-root"></div>
+<script>
+  window.REF_BOARD_CONFIG = {
+    OWNER_USERNAME: 'YOUR_USERNAME_HERE',
+    TARGET_PAGE_ID: 'YOUR_BOARD_PAGE_ID_HERE'
+  };
+</script>
+<script src="/download/attachments/ASSET_PAGE_ID/reference-board.js?v=1"></script>

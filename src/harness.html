@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>リファレンスボード 動作確認</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/*@@LC_CSS@@*/
+/* additions for the reference board check page */
+iframe.web { display: block; width: 100%; height: 380px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+iframe.popup { height: 640px; }
+.sub { font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: .05em; margin: 4px 0 0; }
+.atts { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 220px; overflow: auto; }
+.atts li { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; font-size: 12px; padding: 3px 6px; border-radius: 6px; background: var(--surface-2); }
+.atts li img { width: 34px; height: 34px; object-fit: cover; border-radius: 4px; background: var(--surface); }
+.atts li .n { font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.atts li.trash { opacity: .5; }
+.atts li.trash .n { text-decoration: line-through; }
+.atts li .s { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sim { display: grid; gap: 8px; }
+.sim .row .btn { flex: 1 1 auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>リファレンスボード 動作確認</h1>
+      <p>お渡しした <code>reference-board.js</code> を、HTMLマクロ（設定＋読み込み）と同じ形で、模擬のConfluenceの上でそのまま動かしています。画像の添付・Content Property・ブックマークレットの受け渡しも、実際と同じ通信の形で模擬しています。</p>
+    </div>
+    <div class="progress" id="progress"></div>
+  </header>
+
+  <div class="bar" role="group" aria-label="ボードの表示条件">
+    <label for="selUser">見ている人</label>
+    <select id="selUser"><option value="kojing">こうじ（本人）</option><option value="someone">他の人（閲覧のみ）</option></select>
+    <label for="selSpace">スペース</label>
+    <select id="selSpace"><option value="">通常</option><option value="PUBLICWIKI">PUBLICWIKI（編集無効）</option></select>
+    <button class="btn primary" id="bOpen">ページを開き直す</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button class="btn" id="bReset">最初に戻す</button>
+    <button class="btn" id="b300">300件</button>
+    <button class="btn" id="bFull">容量ぎりぎり</button>
+  </div>
+
+  <div class="grid">
+    <section class="frame-card" aria-label="Confluence ボードのページ">
+      <div class="frame-head"><b>リファレンス</b><span class="url" id="pageUrl"></span></div>
+      <iframe class="page" id="mainFrame" title="ボードのページ（reference-board.js）"></iframe>
+    </section>
+
+    <aside class="side">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="add" aria-selected="true">追加の操作</button>
+        <button class="tab" role="tab" data-tab="web" aria-selected="false">Webページ</button>
+        <button class="tab" role="tab" data-tab="store" aria-selected="false">保存先</button>
+        <button class="tab" role="tab" data-tab="checks" aria-selected="false">チェックリスト</button>
+      </div>
+
+      <section class="panel" data-pane="add">
+        <h2>ボードへの追加（本人で表示しているとき）</h2>
+        <div class="sim">
+          <p class="hint">パソコンの画像ファイルを、左のボードに直接ドラッグ&ドロップしても追加できます。下のボタンは同じ操作を模擬するものです。</p>
+          <div class="row"><button class="btn" id="simDrop">画像3枚をドロップ</button><button class="btn" id="simDropBig">大きい画像をドロップ</button></div>
+          <div class="row"><button class="btn" id="simPaste">スクショを Ctrl+V で貼り付け</button></div>
+          <div class="row"><button class="btn" id="simTab">他のタブの画像をドラッグ</button><button class="btn" id="simUrl">画像URLを Ctrl+V</button></div>
+          <div class="row"><button class="btn" id="simYt">YouTubeのURLを Ctrl+V</button></div>
+        </div>
+        <ul class="notes">
+          <li>模擬の外部サイト: <code>images.example</code> は画像を取得できる（コピー保存可）、<code>pbs.example</code> は取得できない（URL保存になる）、<code>gone.example</code> は削除済みの画像です。</li>
+          <li>外部の画像は、URLに書いた大きさの仮画像に置き換えて表示しています。YouTubeの再生画面はこのページの中では表示されないことがあります。</li>
+        </ul>
+      </section>
+
+      <section class="panel" data-pane="web" hidden>
+        <h2>ブックマークレット（見ているWebページ → 追加画面）</h2>
+        <iframe class="web" id="webFrame" title="模擬のWebページ"></iframe>
+        <div class="row"><button class="btn small primary" id="bBm">このページでブックマークレットを押す</button><span class="hint">ボードの「ブックマークレット」で発行したコードをそのまま実行します</span></div>
+        <p class="sub">追加画面（ポップアップ・別ページ「リファレンス追加」）</p>
+        <iframe class="web popup" id="popupFrame" title="追加画面"></iframe>
+      </section>
+
+      <section class="panel" data-pane="store" hidden>
+        <h2>Content Property（情報）</h2>
+        <table class="props"><thead><tr><th>キー</th><th>件数</th><th>バイト</th><th style="width:34%">30,000バイト中</th></tr></thead><tbody id="propRows"></tbody></table>
+        <div class="total"><span>合計</span><b id="propTotal"></b></div>
+        <h2>ページの添付ファイル（画像）</h2>
+        <ul class="atts" id="atts"></ul>
+        <h2>通信ログ</h2>
+        <ul class="log" id="log"></ul>
+      </section>
+
+      <section class="panel" data-pane="checks" hidden>
+        <h2>機能チェックリスト（確認したらチェック）</h2>
+        <div class="checks" id="checks"></div>
+        <ul class="notes">
+          <li>エクスポートのファイル保存は、このページの中では動かないことがあります（実際のConfluenceでは保存されます）。</li>
+          <li>チェックの状態はこのブラウザにだけ保存されます。</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+const RB_SRC = /*@@RB_SRC@@*/"";
+</script>
+<script>
+(() => {
+'use strict';
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const enc = new TextEncoder();
+const bytes = (v) => enc.encode(JSON.stringify(v)).length;
+const hex = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+const ORIGIN = (() => { try { return location.origin && location.origin !== 'null' ? location.origin : 'https://confluence.example'; } catch { return 'https://confluence.example'; } })();
+const QUICK_URL = ORIGIN + '/wiki/pages/viewpage.action?pageId=900';
+
+// ================= placeholder images for external URLs =================
+function hashOf(s) { let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; }
+function dimsOf(url) { const m = String(url).match(/_(\d{2,4})x(\d{2,4})/); return m ? [+m[1], +m[2]] : /ytimg/.test(url) ? [480, 360] : [800, 600]; }
+function phSvg(url) {
+  let host = ''; try { host = new URL(url).hostname; } catch {}
+  const [w, h] = dimsOf(url), n = hashOf(url), hue = n % 360, h2 = (hue + 40 + (n >> 9) % 80) % 360;
+  const yt = /ytimg/.test(url);
+  const cx = (n >> 3) % 100 / 100 * w, cy = (n >> 5) % 100 / 100 * h, r = Math.min(w, h) * (0.25 + (n >> 7) % 30 / 100);
+  const body = yt
+    ? `<rect width="${w}" height="${h}" fill="hsl(${hue},25%,18%)"/><rect y="${h * .125}" width="${w}" height="${h * .75}" fill="hsl(${hue},45%,34%)"/><circle cx="${w / 2}" cy="${h / 2}" r="${h * .14}" fill="#ff3b30"/><path d="M${w / 2 - h * .04} ${h / 2 - h * .06}v${h * .12}l${h * .1} -${h * .06}z" fill="#fff"/>`
+    : `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},62%,62%)"/><stop offset="1" stop-color="hsl(${h2},58%,30%)"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="hsl(${h2},70%,82%)" fill-opacity=".55"/><rect x="${w * .1}" y="${h * .62}" width="${w * .5}" height="${h * .06}" rx="${h * .03}" fill="#fff" fill-opacity=".7"/><rect x="${w * .1}" y="${h * .72}" width="${w * .32}" height="${h * .04}" rx="${h * .02}" fill="#fff" fill-opacity=".45"/>`;
+  const label = `<text x="${w * .04}" y="${h * .08 + 12}" font-family="monospace" font-size="${Math.max(12, Math.round(w / 34))}" fill="#fff" fill-opacity=".85">${host} ${w}×${h}</text>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}${label}</svg>`);
+}
+const showable = (url) => /^https?:/.test(url) && !/gone\.example/.test(url) && !/\.(mp4|webm|mov)(\?|$)/.test(url);
+async function pngFromUrl(url, maxW) {
+  const im = new Image(); im.src = phSvg(url); await im.decode();
+  let [w, h] = dimsOf(url); const s = Math.min(1, (maxW || 1600) / w); w = Math.round(w * s); h = Math.round(h * s);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(im, 0, 0, w, h);
+  return await new Promise((r) => cv.toBlob(r, 'image/png'));
+}
+
+// ================= mock Confluence =================
+const PAGES = { '100': { title: 'リファレンス', space: 'KOJI', spaceName: '個人スペース' }, '900': { title: 'リファレンス追加', space: 'KOJI', spaceName: '個人スペース' } };
+const CF = { props: new Map(), atts: new Map(), user: 'kojing', space: '', nextId: 7001 };
+const log = [];
+function addLog(who, method, path, status) { log.push({ who, method, path, status }); if (log.length > 300) log.shift(); scheduleRender(); }
+function res(status, body, headers = {}) { return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } }); }
+function attByName(page, name) { for (const a of CF.atts.values()) if (a.page === page && a.name === name && !a.trash) return a; return null; }
+function addAtt(page, name, blob) { const id = String(CF.nextId++); const a = { id, page, name, blob, size: blob.size, type: blob.type, url: URL.createObjectURL(blob), trash: false }; CF.atts.set(id, a); scheduleRender(); return a; }
+
+async function extFetch(u, init, who) {
+  await sleep(80 + Math.random() * 120);
+  const host = u.hostname;
+  const short = host + u.pathname.slice(0, 28);
+  if (/(^|\.)images\.example$|cdninstagram\.example$/.test(host)) { addLog(who, 'GET', short, 200); return new Response(await pngFromUrl(u.href, 1400), { status: 200, headers: { 'Content-Type': 'image/png' } }); }
+  addLog(who, 'GET', short + '（CORSで拒否）', 0);
+  throw new TypeError('Failed to fetch');
+}
+async function cfFetch(url, init, who) {
+  const u = new URL(url, 'https://confluence.example');
+  if (u.hostname !== 'confluence.example') return extFetch(u, init, who);
+  await sleep(25 + Math.random() * 45);
+  const method = (init.method || 'GET').toUpperCase();
+  const short = u.pathname.replace('/rest/api/content/', '').replace('/rest/api/', '') + (method === 'GET' && u.search && !/property\/./.test(u.pathname) ? u.search.replace(/expand=version&/, '') : '');
+  const done = (r) => { addLog(who, method, short, r.status); return r; };
+  const canWrite = CF.user === 'kojing';
+  if (u.pathname === '/rest/api/user/current') return done(res(200, { name: CF.user, username: CF.user, displayName: CF.user === 'kojing' ? 'こうじ' : '他の人' }));
+  let m = u.pathname.match(/^\/rest\/api\/content\/(\d+)$/);
+  if (m) {
+    const id = m[1];
+    if (method === 'DELETE') {
+      const a = CF.atts.get(id);
+      if (!a || a.trash) return done(res(404, {}));
+      if (!canWrite) return done(res(403, {}));
+      a.trash = true; scheduleRender(); return done(new Response(null, { status: 204 }));
+    }
+    const p = PAGES[id]; return done(p ? res(200, { id, title: p.title, space: { key: p.space, name: p.spaceName } }) : res(404, {}));
+  }
+  m = u.pathname.match(/^\/rest\/api\/content\/(\d+)\/child\/attachment$/);
+  if (m) {
+    if (!PAGES[m[1]]) return done(res(404, {}));
+    if (!canWrite) return done(res(403, { message: '添付の権限がありません' }));
+    if (!header(init, 'X-Atlassian-Token')) return done(res(403, { message: 'XSRF check failed' }));
+    const file = init.body && init.body.get ? init.body.get('file') : null;
+    if (!file) return done(res(400, {}));
+    if (file.size > 100 * 1048576) return done(res(413, {}));
+    if (attByName(m[1], file.name)) return done(res(400, { message: 'Cannot add a new attachment with same file name as an existing attachment' }));
+    const a = addAtt(m[1], file.name, file);
+    return done(res(200, { results: [{ id: a.id, type: 'attachment', title: a.name }] }));
+  }
+  m = u.pathname.match(/^\/rest\/api\/content\/(\d+)\/property(?:\/(.+))?$/);
+  if (!m || !PAGES[m[1]]) return done(res(404, {}));
+  const page = m[1], key = m[2] ? decodeURIComponent(m[2]) : null, pk = (k) => page + '|' + k;
+  if (method === 'GET' && !key) {
+    const start = +u.searchParams.get('start') || 0, lim = +u.searchParams.get('limit') || 10;
+    const all = [...CF.props].filter(([k]) => k.startsWith(page + '|')).map(([k, p]) => ({ key: k.split('|')[1], value: p.value, version: { number: p.version } }));
+    return done(res(200, { results: all.slice(start, start + lim) }));
+  }
+  if (method === 'GET') { const p = CF.props.get(pk(key)); return done(p ? res(200, { key, value: p.value, version: { number: p.version } }) : res(404, {})); }
+  if (!canWrite) return done(res(403, { message: '編集権限がありません' }));
+  const body = JSON.parse(init.body);
+  if (bytes(body.value) > 32768) return done(res(413, { message: '32KBを超えています' }));
+  if (method === 'POST') {
+    if (CF.props.has(pk(body.key))) return done(res(409, {}));
+    CF.props.set(pk(body.key), { value: body.value, version: 1 }); scheduleRender();
+    return done(res(200, { key: body.key, version: { number: 1 } }));
+  }
+  const p = CF.props.get(pk(key));
+  if (!p || body.version.number !== p.version + 1) return done(res(409, {}));
+  p.value = body.value; p.version++; scheduleRender();
+  return done(res(200, { key, version: { number: p.version } }));
+}
+function header(init, name) {
+  const h = init.headers || {};
+  if (h instanceof Headers || (h.get && h.has)) return h.get(name);
+  const k = Object.keys(h).find((x) => x.toLowerCase() === name.toLowerCase());
+  return k ? h[k] : null;
+}
+
+window.RBMock = {
+  fetch(url, init, who) { return cfFetch(url, init || {}, who); },
+  ajs(k, page) { return k === 'page-id' ? page : k === 'space-key' ? (CF.space || PAGES[page].space) : null; },
+  attHref(page, name) { const a = attByName(String(page), name); return a ? a.url : 'https://gone.example/attachment-missing/' + encodeURIComponent(name); },
+  ph: phSvg, showable,
+  openPopup(url) {
+    let search = ''; try { search = new URL(url, ORIGIN).search; } catch {}
+    $('popupFrame').srcdoc = SHIM({ who: 'ポップアップ', page: '900', search, opener: true }) + QUICK_EMBED + JS_TAG;
+    scheduleRender();
+    return $('popupFrame').contentWindow;
+  },
+  webWin() { return $('webFrame').contentWindow; },
+  onClose() {
+    $('popupFrame').srcdoc = '<p style="font:13px system-ui;color:#777;padding:16px">追加画面は保存後に自動で閉じました。ボードのタブに戻ったとき（ここでは自動）に新しいリファレンスが反映されます。</p>';
+    // 実際にはボードのタブに戻ると visibilitychange で読み直す。ここでは同じイベントを送る
+    setTimeout(() => { try { const d = $('mainFrame').contentDocument; d.dispatchEvent(new Event('visibilitychange')); } catch {} }, 300);
+  },
+};
+
+// ================= running the delivered file inside iframes =================
+// 変えているのは「設定値」「URLのクエリの読み先」「外部画像の表示（仮画像）」「添付ファイルの表示先」だけです。
+const SHIM = ({ who, page, search, opener }) => `<!doctype html><meta charset="utf-8"><style>body{margin:0;padding:18px 20px;background:#fff;font:14px system-ui}</style><script>
+window.__RB_SEARCH=${JSON.stringify(search || '')};
+window.AJS={Meta:{get:function(k){return parent.RBMock.ajs(k,${JSON.stringify(page)});}},contextPath:function(){return '';}};
+var __f=window.fetch.bind(window);window.fetch=function(u,i){if(/^(blob|data):/.test(String(u)))return __f(u,i);return parent.RBMock.fetch(String(u),i||{},${JSON.stringify(who)});};
+window.close=function(){parent.RBMock.onClose();};
+window.__RB_ATT_HREF=function(p,n){return parent.RBMock.attHref(p,n);};
+${opener ? 'try{window.opener=parent.RBMock.webWin();}catch(e){}' : ''}
+(function(){
+  var d=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
+  Object.defineProperty(HTMLImageElement.prototype,'src',{configurable:true,get:function(){return d.get.call(this);},set:function(v){v=String(v);if(parent.RBMock.showable(v)){this.setAttribute('data-ext',v);v=parent.RBMock.ph(v);}d.set.call(this,v);}});
+  function fix(img){var s=img.getAttribute('src')||'';if(!parent.RBMock.showable(s))return;img.setAttribute('data-ext',s);img.setAttribute('src',parent.RBMock.ph(s));}
+  function scan(r){if(r.querySelectorAll)r.querySelectorAll('img').forEach(fix);}
+  function watch(r){scan(r);new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1){if(n.tagName==='IMG')fix(n);scan(n);}});if(m.type==='attributes'&&m.target.tagName==='IMG')fix(m.target);});}).observe(r,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});}
+  var o=Element.prototype.attachShadow;Element.prototype.attachShadow=function(x){var r=o.call(this,x);watch(r);return r;};
+  document.addEventListener('DOMContentLoaded',function(){watch(document);});
+})();
+<\/script>`;
+const JS_PATCHED = RB_SRC.replace('new URLSearchParams(location.search)', 'new URLSearchParams(window.__RB_SEARCH || location.search)');
+if (JS_PATCHED === RB_SRC) console.warn('patch failed');
+const JS_TAG = '<script>' + JS_PATCHED.replace(/<\/script/gi, '<\\/script') + '<\/script>';
+const BOARD_EMBED = () => `<div id="ref-board-root"></div>
+<script>
+  window.REF_BOARD_CONFIG = {
+    OWNER_USERNAME: 'kojing',
+    QUICK_ADD_PAGE_URL: ${JSON.stringify(QUICK_URL)},
+    DELETE_ATTACHMENTS: true,
+    DISABLED_SPACES: ['PUBLICWIKI'],
+    DISABLED_DOMAINS: [],
+    DISABLED_URLS: []
+  };
+<\/script>`;
+const QUICK_EMBED = `<div id="ref-board-root"></div>
+<script>
+  window.REF_BOARD_CONFIG = { OWNER_USERNAME: 'kojing', TARGET_PAGE_ID: '100' };
+<\/script>`;
+
+function openMain() {
+  CF.user = $('selUser').value; CF.space = $('selSpace').value;
+  $('pageUrl').textContent = `https://confluence.example/display/${CF.space || 'KOJI'}/リファレンス?pageId=100（${CF.user === 'kojing' ? '本人' : '他の人'}が表示）`;
+  $('mainFrame').srcdoc = SHIM({ who: 'ボード', page: '100', search: '' }) + BOARD_EMBED() + JS_TAG;
+  scheduleRender();
+}
+
+// ================= sample data =================
+const IMG = (name, w, h, host = 'images.example') => `https://${host}/ref/${name}_${w}x${h}.jpg`;
+let seq = 0;
+const at = (h) => new Date(Date.parse('2026-10-01T09:00:00+09:00') + h * 3.6e6).toISOString();
+const id = () => 'r' + (++seq).toString(36) + hex(5);
+async function sampleItems() {
+  const list = [
+    { title: '設定画面のタブ切り替えモーション', tags: ['UI', 'モーション'], src: IMG('tab-motion', 1200, 900), page: 'https://dribbble.example/shots/tab-motion', w: 1200, h: 900 },
+    { title: '金属の擦り傷テクスチャ', tags: ['質感・マテリアル'], att: true, w: 1024, h: 1024, ph: IMG('metal-scratch', 1024, 1024) },
+    { title: 'ボタン押下時のインク飛沫', tags: ['エフェクト', 'UI'], src: IMG('ink-splash', 900, 1350), page: 'https://x.example/status/1', w: 900, h: 1350 },
+    { title: 'Houdini Vellum 布のシミュレーション', tags: ['エフェクト'], kind: 'video', src: 'https://www.youtube.com/watch?v=G5K-0wqEJsU' },
+    { title: '見出しの和欧混植', tags: ['タイポグラフィ'], att: true, w: 1600, h: 900, ph: IMG('typo-mix', 1600, 900) },
+    { title: '夕方の色の移り変わり', tags: ['配色'], src: IMG('dusk-palette', 1080, 1350), page: 'https://x.example/status/2', w: 1080, h: 1350 },
+    { title: 'リザルト画面の演出', tags: ['UI', 'モーション'], kind: 'video', src: 'https://www.youtube.com/shorts/2vIF1OiIByI' },
+    { title: '', tags: ['背景・美術'], src: IMG('alley', 1500, 1000), page: 'https://artstation.example/a/1', w: 1500, h: 1000 },
+    { title: 'ガラスの屈折表現', tags: ['質感・マテリアル', 'エフェクト'], att: true, w: 800, h: 1200, ph: IMG('glass', 800, 1200) },
+    { title: '削除されてしまった画像', tags: ['要確認'], src: 'https://gone.example/media/old_1000x1000.jpg', page: 'https://gone.example/post/9', w: 1000, h: 1000 },
+    { title: 'キャラ立ち絵のシルエット', tags: ['キャラクター'], src: IMG('silhouette', 700, 1400), w: 700, h: 1400 },
+    { title: 'アイコンのグリッド', tags: ['UI'], att: true, w: 1200, h: 800, ph: IMG('icon-grid', 1200, 800) },
+    { title: 'スクロール連動のぼかし', tags: ['UI', 'モーション'], kind: 'video', src: 'https://vimeo.com/123456789', thumb: IMG('vimeo-blur', 1280, 720) },
+    { title: '', tags: ['写真'], src: IMG('kyoto-street', 1000, 1500), w: 1000, h: 1500 },
+    { title: 'カード型UIの影', tags: ['UI'], src: IMG('card-shadow', 1200, 1200), page: 'https://dribbble.example/shots/card', w: 1200, h: 1200 },
+    { title: '雲のノイズ', tags: ['背景・美術', '質感・マテリアル'], att: true, w: 2048, h: 1024, ph: IMG('cloud-noise', 2048, 1024) },
+  ];
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const x = list[i], it = { id: id(), kind: x.kind || 'image', title: x.title, tags: x.tags, memo: i === 0 ? '選択中のタブが少し遅れて追従する。0.18秒くらい。' : '', createdAt: at(i * 5) };
+    if (x.att) {
+      const blob = await pngFromUrl(x.ph, 900);
+      const a = addAtt('100', 'rb-' + it.id + '.png', blob);
+      it.att = { id: a.id, n: a.name }; it.w = x.w; it.h = x.h;
+    } else { it.src = x.src; if (x.w) { it.w = x.w; it.h = x.h; } }
+    if (x.page) it.page = x.page;
+    if (x.thumb) it.thumb = x.thumb;
+    out.push(it);
+  }
+  return out;
+}
+function packShards(page, items, fillTo) {
+  const shards = Array.from({ length: 16 }, () => ({ items: [] }));
+  let s = 0;
+  for (const it of items) {
+    while (s < 16) { shards[s].items.push(it); if (bytes(shards[s]) <= (fillTo || 30000)) break; shards[s].items.pop(); s++; }
+    if (s >= 16) break;
+  }
+  if (fillTo) shards.forEach((v) => { const last = v.items[v.items.length - 1]; if (last) last.memo += '.'.repeat(Math.max(0, 29995 - bytes(v))); });
+  shards.forEach((v, i) => { if (v.items.length) CF.props.set(`${page}|ref-board-data-${String(i).padStart(2, '0')}`, { value: v, version: 1 }); });
+}
+const TAGS = ['UI', 'モーション', '質感・マテリアル', 'タイポグラフィ', '配色', 'エフェクト', 'キャラクター', '背景・美術', '写真', '要確認'];
+function clearBoard() { for (const k of [...CF.props.keys()]) if (k.startsWith('100|')) CF.props.delete(k); for (const a of CF.atts.values()) { URL.revokeObjectURL(a.url); } CF.atts.clear(); }
+let resetting = false;
+async function reset() {
+  if (resetting) return; resetting = true;
+  clearBoard(); log.length = 0;
+  try { Object.keys(localStorage).filter((k) => /^rb-/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch {}
+  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: 16, tags: TAGS }, version: 1 });
+  packShards('100', await sampleItems());
+  $('selUser').value = 'kojing'; $('selSpace').value = '';
+  openMain(); loadWeb(); $('popupFrame').srcdoc = '<p style="font:13px system-ui;color:#777;padding:16px">上のWebページで「ブックマークレットを押す」と、ここに追加画面が開きます。</p>';
+  resetting = false;
+}
+async function make300() {
+  clearBoard();
+  const kinds = ['UI', 'モーション', '質感・マテリアル', 'エフェクト', '配色', '背景・美術'];
+  const ratios = [[1200, 900], [900, 1350], [1080, 1080], [1600, 900], [800, 1400], [1000, 1250]];
+  const list = Array.from({ length: 300 }, (_, i) => {
+    const [w, h] = ratios[i % ratios.length];
+    return { id: id(), kind: 'image', title: i % 4 ? `サンプル ${i + 1}` : '', tags: [kinds[i % kinds.length]], memo: '', src: IMG('s' + i, w, h), w, h, page: `https://dribbble.example/shots/${i}`, createdAt: at(i) };
+  });
+  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: 16, tags: kinds }, version: 1 });
+  packShards('100', list); openMain();
+}
+function makeFull() {
+  clearBoard();
+  const list = Array.from({ length: 4000 }, (_, i) => ({ id: id(), kind: 'image', title: `容量テスト ${i + 1}`, tags: ['要確認'], memo: 'メモ', src: IMG('full' + i, 1000, 1000), w: 1000, h: 1000, createdAt: at(i) }));
+  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: 16, tags: ['要確認'] }, version: 1 });
+  packShards('100', list, 30000); openMain();
+}
+
+// ================= mock web page (for the bookmarklet) =================
+function loadWeb() {
+  const im = (u, w, h, alt) => `<img src="${u}" width="${w}" height="${h}" alt="${alt || ''}" style="content:url('${phSvg(u)}')">`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>ゲームUIのモーション事例 12選 | デザインメモ</title>
+<meta property="og:image" content="${IMG('og-motion', 1200, 630)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<style>body{margin:0;font:14px/1.7 system-ui;color:#222;background:#fafafa}main{max-width:560px;margin:0 auto;padding:16px}h1{font-size:19px;margin:6px 0 12px}img{display:block;max-width:100%;height:auto;border-radius:6px;margin:10px 0}.row{display:flex;gap:8px}.row img{width:48%;}.icon{display:inline-block;width:20px;height:20px;margin:0 4px 0 0;vertical-align:middle}.yt{width:100%;aspect-ratio:16/9;border:0;background:#111;border-radius:6px}nav{font-size:12px;color:#888}</style></head>
+<body><main><nav>${im(IMG('logo', 40, 40), 20, 20, 'logo').replace('<img', '<img class="icon"')} デザインメモ › モーション</nav>
+<h1>ゲームUIのモーション事例 12選</h1>
+<p>最近見て良かったUIモーションをまとめました。</p>
+${im(IMG('hero-motion', 1600, 900), 528, 297, 'ヒーロー')}
+<div class="row">${im(IMG('menu-open', 800, 1200), 256, 384)}${im('https://pbs.example/media/card-flip_900x1200.jpg', 256, 341, 'カードのめくり')}</div>
+${im('https://scontent.cdninstagram.example/v/reel_1080x1350.jpg?oe=6720AB12', 528, 660, 'Instagramの投稿')}
+<iframe class="yt" src="https://www.youtube.com/embed/xHevq9JjW5M" title="YouTube video" loading="lazy"></iframe>
+<video src="https://images.example/clips/gauge_1280x720.mp4" poster="${IMG('gauge-poster', 1280, 720)}" width="528" height="297" style="width:100%;height:auto;background:#222;border-radius:6px" muted></video>
+${im(IMG('tiny-badge', 64, 64), 32, 32, 'badge')}
+</main></body></html>`;
+  $('webFrame').srcdoc = html;
+  $('webFrame').onload = () => {
+    const w = $('webFrame').contentWindow;
+    w.fetch = (u, i) => window.RBMock.fetch(new URL(String(u), 'https://design-memo.example/').href, i || {}, 'Webページ');
+    w.open = (u) => window.RBMock.openPopup(u);
+  };
+}
+function runBookmarklet() {
+  const mw = $('mainFrame').contentWindow;
+  const mk = mw && mw.ReferenceBoard && mw.ReferenceBoard.makeBookmarklet;
+  if (!mk) { alert('ボードのページを開いてから押してください'); return; }
+  const code = decodeURIComponent(mk(QUICK_URL).slice('javascript:'.length));
+  $('webFrame').contentWindow.eval(code);
+  document.querySelector('[data-pane=web]').scrollIntoView({ block: 'nearest' });
+}
+
+// ================= simulated user actions on the board =================
+function boardWin() { return $('mainFrame').contentWindow; }
+function boardPoint() { const d = $('mainFrame').contentDocument; const r = d.getElementById('ref-board-root').getBoundingClientRect(); return { x: r.left + r.width / 2, y: Math.min(r.top + 160, r.bottom - 10) }; }
+async function makeFiles(w, specs) {
+  const files = [];
+  for (const [name, wd, ht] of specs) { const b = await pngFromUrl(IMG(name, wd, ht), wd); files.push(new w.File([b], name + '.png', { type: 'image/png' })); }
+  return files;
+}
+function dispatchDrop(dtFill) {
+  const w = boardWin(); if (!w) return;
+  const dt = new w.DataTransfer(); dtFill(dt, w);
+  const p = boardPoint();
+  for (const type of ['dragenter', 'dragover', 'drop']) w.document.body.dispatchEvent(new w.DragEvent(type, { dataTransfer: dt, clientX: p.x, clientY: p.y, bubbles: true, cancelable: true }));
+}
+async function simDrop(big) {
+  const w = boardWin();
+  const files = big ? await makeFiles(w, [['big-render', 3200, 1800]]) : await makeFiles(w, [['ref-a', 900, 1200], ['ref-b', 1200, 800], ['ref-c', 1000, 1000]]);
+  if (!big) files.push(new w.File(['memo'], 'メモ.txt', { type: 'text/plain' }));
+  dispatchDrop((dt) => files.forEach((f) => dt.items.add(f)));
+}
+async function simPaste(kind) {
+  const w = boardWin(); const dt = new w.DataTransfer();
+  if (kind === 'image') (await makeFiles(w, [['screenshot', 1440, 900]])).forEach((f) => dt.items.add(f));
+  if (kind === 'url') dt.setData('text/plain', IMG('pasted', 1000, 1300));
+  if (kind === 'yt') dt.setData('text/plain', 'https://youtu.be/dQw4w9WgXcQ');
+  try { w.document.activeElement && w.document.activeElement.blur && w.document.activeElement.blur(); } catch {}
+  w.document.body.dispatchEvent(new w.ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+}
+function simTab() {
+  const src = IMG('from-tab', 1080, 1440);
+  dispatchDrop((dt) => { dt.setData('text/html', `<a href="https://pinterest.example/pin/123"><img src="${src}"></a>`); dt.setData('text/uri-list', 'https://pinterest.example/pin/123'); });
+}
+
+// ================= side panels =================
+let rq = 0;
+function scheduleRender() { if (!rq) rq = requestAnimationFrame(() => { rq = 0; renderSide(); }); }
+function renderSide() {
+  const rows = []; let total = 0;
+  const keys = ['ref-board-data', ...Array.from({ length: 16 }, (_, i) => 'ref-board-data-' + String(i).padStart(2, '0'))];
+  for (const k of keys) {
+    const p = CF.props.get('100|' + k); const b = p ? bytes(p.value) : 0; if (k !== 'ref-board-data') total += b;
+    const cnt = p && p.value && Array.isArray(p.value.items) ? p.value.items.length : (p ? '–' : '');
+    const pct = Math.min(100, b / 30000 * 100), cls = b > 30000 ? 'full' : b > 27000 ? 'hot' : '';
+    rows.push(`<tr><td class="k">${k === 'ref-board-data' ? 'ref-board-data（索引）' : k.slice(-2)}</td><td>${p ? cnt : '<span class="hint">–</span>'}</td><td>${p ? b.toLocaleString() : ''}</td><td>${p ? `<div class="meter"><i class="${cls}" style="width:${pct}%"></i></div>` : ''}</td></tr>`);
+  }
+  $('propRows').innerHTML = rows.join('');
+  $('propTotal').textContent = `${(total / 1024).toFixed(1)} KB / 468.8 KB（16×30,000バイト）`;
+  const atts = [...CF.atts.values()].reverse();
+  $('atts').innerHTML = atts.map((a) => `<li class="${a.trash ? 'trash' : ''}"><img src="${a.url}" alt=""><span class="n" title="${esc(a.name)}">${esc(a.name)}</span><span class="s">${a.trash ? 'ゴミ箱' : Math.max(1, Math.round(a.size / 1024)) + ' KB'}</span></li>`).join('') || '<li><span></span><span class="hint">添付はありません</span><span></span></li>';
+  const L = $('log'); const atBottom = L.scrollHeight - L.scrollTop - L.clientHeight < 30;
+  L.innerHTML = log.slice(-150).map((l) => `<li><span class="who">${esc(l.who)}</span><span class="m">${l.method}</span><span class="p" title="${esc(l.path)}">${esc(l.path)}</span><span class="s ${l.status >= 400 || l.status === 0 ? 'e' : ''}">${l.status || '×'}</span></li>`).join('');
+  if (atBottom) L.scrollTop = L.scrollHeight;
+}
+
+// ================= checklist =================
+const CHECKS = [
+  ['ボードの表示', [
+    ['石積み（Pinterest風）の一覧', '画像・動画だけのカードが、空いている列に詰めて並びます。左上が一番新しいものです。タイトルやボタンは詳細にまとめています。'],
+    ['幅に合わせて列数が変わる', 'ブラウザの幅を変えると列数が変わります（1列の目安は236px）。'],
+    ['検索', '検索欄に「質感」「dribbble」などを入れると、タイトル・メモ・タグ・サイト名で絞り込みます。'],
+    ['種類（すべて／画像／動画）', '「動画」を押すと YouTube・Vimeo だけになります。'],
+    ['タグで絞り込み（複数はOR）', 'タグのチップを押して絞り込みます。チップの数字は件数です。'],
+    ['詳細表示と前後の移動', 'カードを押すと大きく表示されます。← → キーで前後、Esc で閉じます。タグを押すとそのタグで絞り込みます。'],
+    ['画像のダウンロード', '詳細の「ダウンロード」で、タイトルをファイル名にして保存します（添付・images.example）。pbs.example の画像は直接保存できないため新しいタブで開きます。このページの中では保存が動かないことがあります。'],
+    ['動画のダウンロードは可能なときだけ', 'YouTube・Vimeo の詳細には「ダウンロード」が出ません（mp4 などのファイルのときだけ出ます）。'],
+    ['表示できない画像', '「削除されてしまった画像」は斜線の枠と「画像を表示できません」になります。'],
+    ['300件でも軽い', '「300件」を押して下までスクロールすると、40件ずつ足されていきます。', 'b300'],
+  ]],
+  ['ボードに追加（本人だけ）', [
+    ['画像ファイルをドロップ', '「追加の操作」→「画像3枚をドロップ」。テキストファイルは除外され、3枚のタイトル・共通のタグを入れて追加。「保存先」に rb-○○.png が増えます。'],
+    ['大きい画像は縮小画像も作る', '「大きい画像をドロップ」→ 追加すると、元画像と一覧用の rb-○○-t.webp の2つが添付されます。'],
+    ['スクショを貼り付け', '「スクショを Ctrl+V で貼り付け」で同じ追加画面が開きます。'],
+    ['他のタブの画像をドラッグ', '「他のタブの画像をドラッグ」で、画像URLと元のページURLが入った状態で「URLで追加」が開きます。'],
+    ['URLで追加（URL保存）', '「画像URLを Ctrl+V」または「追加」→「URLで追加」。プレビューが出たら追加。'],
+    ['URLで追加（コピーして保存）', '「このページにコピーして保存」にチェックして追加すると、images.example の画像は添付になります。'],
+    ['YouTubeのURL', '「YouTubeのURLを Ctrl+V」で動画として追加できます。'],
+    ['編集', 'カードを押して詳細の「編集」。タグの候補チップを押すと入力欄に足し引きされます。'],
+    ['削除すると添付もゴミ箱へ', '添付の画像（金属の擦り傷など）を詳細の「削除」で消すと、「保存先」で添付に取り消し線が付きます。'],
+    ['エクスポート・インポート', 'エクスポートしたJSON、または [{"src":"…","title":"…","tags":["…"]}] を「インポート」に貼ると、重複を除いて取り込みます。'],
+  ]],
+  ['ブックマークレット', [
+    ['ページの画像・動画が候補に並ぶ', '「Webページ」タブで「ブックマークレットを押す」。小さいロゴ・バッジは除外され、画像・YouTube・videoが大きい順に並び、一番大きいものが選ばれた状態で開きます。og:image は候補に入りません。'],
+    ['複数選んで追加', '候補を押して選び、タグを付けて「○件を追加」。保存後に追加画面は自動で閉じ、ボードに反映されます。'],
+    ['コピーして保存（取得できない画像はURL）', 'チェックを入れて pbs.example の画像も選ぶと、「1件はコピーできずURLで保存」と出ます。'],
+    ['消えやすいURLの注意', 'Instagram の画像を選ぶと「コピーして保存がおすすめ」と出ます。'],
+    ['追加済みの表示', 'もう一度ブックマークレットを押すと、追加した画像は「追加済み」になり選べません。'],
+  ]],
+  ['見る人・場所による制御', [
+    ['本人以外は閲覧のみ', '「見ている人」を「他の人」にすると、追加・編集・削除が出ず、ドロップも受け付けません。'],
+    ['スペースによる編集の無効化', '「スペース」を PUBLICWIKI にすると、本人でも閲覧のみになります。'],
+  ]],
+  ['保存容量', [
+    ['16個に分けて保存', '「保存先」で 00〜15 の件数と使用量を確認できます。ボードの下にも使用率が出ます。'],
+    ['いっぱいのときの表示', '「容量ぎりぎり」→「画像URLを Ctrl+V」で追加しようとすると、画像を添付する前に「情報の保存領域がいっぱいです」と出て止まります。', 'full'],
+  ]],
+];
+function renderChecks() {
+  let state = {}; try { state = JSON.parse(lsGet('rbv1-checks') || '{}'); } catch {}
+  let total = 0, done = 0;
+  $('checks').innerHTML = CHECKS.map(([g, list]) => `<div class="group"><h3>${esc(g)}</h3><ol>${list.map(([t, how, act]) => {
+    total++; const on = !!state[t]; if (on) done++;
+    const btn = act === 'b300' ? '<br><button class="btn small" data-act="b300">300件にする</button>' : act === 'full' ? '<br><button class="btn small" data-act="full">容量ぎりぎりにする</button>' : '';
+    return `<li class="check${on ? ' done' : ''}"><input type="checkbox" aria-label="${esc(t)}" data-t="${esc(t)}"${on ? ' checked' : ''}><div><div class="t">${esc(t)}</div><div class="how">${esc(how)}${btn}</div></div></li>`;
+  }).join('')}</ol></div>`).join('');
+  $('progress').innerHTML = `確認済み <b>${done}</b> / ${total}`;
+  $('checks').querySelectorAll('input[type=checkbox]').forEach((cb) => cb.onchange = () => { state[cb.dataset.t] = cb.checked; lsSet('rbv1-checks', JSON.stringify(state)); renderChecks(); });
+  $('checks').querySelectorAll('[data-act]').forEach((b) => b.onclick = () => { if (b.dataset.act === 'b300') make300(); else makeFull(); });
+}
+
+// ================= wiring =================
+document.querySelectorAll('.tab').forEach((t) => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', x === t));
+  document.querySelectorAll('[data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== t.dataset.tab; });
+  lsSet('rbv1-tab', t.dataset.tab);
+});
+$('bOpen').onclick = openMain; $('selUser').onchange = openMain; $('selSpace').onchange = openMain;
+$('bReset').onclick = reset; $('b300').onclick = make300; $('bFull').onclick = makeFull;
+$('bBm').onclick = runBookmarklet;
+$('simDrop').onclick = () => simDrop(false); $('simDropBig').onclick = () => simDrop(true);
+$('simPaste').onclick = () => simPaste('image'); $('simUrl').onclick = () => simPaste('url'); $('simYt').onclick = () => simPaste('yt');
+$('simTab').onclick = simTab;
+renderChecks(); reset();
+const savedTab = lsGet('rbv1-tab'); if (savedTab) { const t = document.querySelector(`.tab[data-tab="${savedTab}"]`); if (t) t.click(); }
+})();
+</script>
+</body>
+</html>

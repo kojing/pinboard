@@ -1,0 +1,22 @@
+<!--
+ リファレンスボード 本体ページ用 HTMLマクロ (v1.0.0)
+ 1. reference-board.js を、置き場所にするConfluenceページ(例:「リンク集の部品」)に添付する
+ 2. 下の src の ASSET_PAGE_ID を、そのページのIDに書き換える
+    (Confluence が /confluence などのパスの下にある場合は、先頭にそのパスも付ける)
+ 3. REF_BOARD_CONFIG を自分の設定に書き換える
+ 4. JSを更新したら、添付を上書きして ?v= の数字を変える(ブラウザのキャッシュ対策)
+ ※ 画像はこのマクロを置いたページに添付されます(rb-xxxx.jpg など)
+-->
+<div id="ref-board-root"></div>
+<script>
+  window.REF_BOARD_CONFIG = {
+    OWNER_USERNAME: 'YOUR_USERNAME_HERE', // 自分のConfluenceユーザー名
+    QUICK_ADD_PAGE_URL: '',               // 追加用ポップアップページのURL(使わないなら空 → このページで追加画面を開く)
+    DEFAULT_TAGS: ['UI', 'モーション', '質感・マテリアル', 'タイポグラフィ', '配色', 'エフェクト', 'キャラクター', '背景・美術', '写真'],
+    DELETE_ATTACHMENTS: true,             // 削除したとき添付画像もゴミ箱へ
+    DISABLED_SPACES: [],                  // 例: ['PUBLICWIKI'] このスペースでは閲覧のみ
+    DISABLED_DOMAINS: [],
+    DISABLED_URLS: []
+  };
+</script>
+<script src="/download/attachments/ASSET_PAGE_ID/reference-board.js?v=1"></script>
