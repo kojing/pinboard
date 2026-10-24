@@ -7,8 +7,7 @@
 //   node tools/pinterest-export.mjs [ユーザー名] [ボード名,ボード名…]   (既定: pinkojing の ft)
 //   ボードはボード名かURLの最後の部分(/pinkojing/ft/ なら ft)で指定。大文字小文字は区別しない。* で全部。
 //
-// 出力 { app, source, user, exportedAt, boards, tags, items }
-//   tags  … ボード名(セクションのピンは「ボード名/セクション名」も付く)
+// 出力 { app, source, user, exportedAt, boards, items }(タグは付けない)
 //   src   … 元画像(originals)  thumb … 一覧用(474x)  page … ピンのURL  memo … 説明と出典URL
 //   動画ピンは mp4 が取れれば動画、取れなければ画像。複数のボードにある同じピンは1件にまとめる。
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
@@ -129,7 +128,6 @@ export function toItem(p, tags) {
   const link = p.link && !/pinterest\./.test(p.link) ? String(p.link).slice(0, 300) : '';
   it.memo = memo + (link ? (memo ? '\n' : '') + '出典: ' + link : '');
   it.page = `${ORIGIN}/pin/${p.id}/`;
-  it.tags = [...tags];
   it.createdAt = iso(p.created_at);
   return it;
 }
@@ -165,7 +163,7 @@ async function main() {
     const it = toItem(p, tags);
     if (!it) { skipped++; return; }
     const cur = byId.get(it.id);
-    if (!cur) byId.set(it.id, it); else for (const t of tags) if (!cur.tags.includes(t)) cur.tags.push(t);
+    if (!cur) byId.set(it.id, it);
   };
   const summary = [];
   for (const [i, b] of boards.entries()) {
@@ -190,17 +188,14 @@ async function main() {
   }
 
   const items = [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const tags = [];
-  for (const b of summary) if (!tags.includes(b.name)) tags.push(b.name);
-  for (const it of items) for (const t of it.tags) if (!tags.includes(t)) tags.push(t);
   const bytes = Buffer.byteLength(JSON.stringify(items));
 
   // 前回と中身が同じなら書き換えない(日付だけのコミットを作らない)
   let prev = null; try { prev = JSON.parse(await readFile(OUT, 'utf8')); } catch {}
-  if (prev && JSON.stringify(prev.items) === JSON.stringify(items) && JSON.stringify(prev.tags) === JSON.stringify(tags)) {
+  if (prev && JSON.stringify(prev.items) === JSON.stringify(items)) {
     console.log(`変化なし(${items.length} 件)`); return;
   }
-  const out = { app: 'reference-board', source: 'pinterest', user: USER, exportedAt: new Date().toISOString(), boards: summary, tags, items };
+  const out = { app: 'reference-board', source: 'pinterest', user: USER, exportedAt: new Date().toISOString(), boards: summary, items };
   await mkdir('data/pinterest', { recursive: true });
   await writeFile(OUT, JSON.stringify(out, null, 1) + '\n');
   const video = items.filter((x) => x.kind === 'video').length;
