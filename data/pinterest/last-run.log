@@ -1,3 +1,6 @@
 Pinterest pinkojing を読み込みます
-  ft を直接は読めませんでした(BoardResource が HTTP 403 を返しました: Invalid Resource Request)
-止まりました: BoardsResource が HTTP 403 を返しました: Invalid Resource Request
+対象: ft(1041)
+[1/1] ft: 27 ピン(Pinterest上 1041)
+
+data/pinterest/pinkojing.json に 25 件(画像 24・動画 1)、読めなかったピン 2 件
+ボードの保存領域の目安: 12KB / 469KB(2%)
