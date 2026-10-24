@@ -247,7 +247,7 @@
 
     // 保存先の読み込み
     if (!PAGE_ID) { setSt('保存先のページIDが分かりません。TARGET_PAGE_ID を設定してください。', true); return; }
-    st.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch);
+    st.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch, CONFIG.SHARDS);
     Promise.all([apiCurrentUser().catch(function () { return null; }), st.store.load(), apiPageInfo(PAGE_ID).catch(function () { return null; })]).then(function (r) {
       var u = r[0], data = r[1], info = r[2];
       var name = u && (u.username || u.name);

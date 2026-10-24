@@ -110,7 +110,7 @@
 
     if (!PAGE_ID) { setStatus('ページIDが取得できませんでした。ページを保存してから開いてください。', true); return; }
     setStatus('読み込み中…');
-    state.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch);
+    state.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch, CONFIG.SHARDS);
     var userP = apiCurrentUser().catch(function () { return null; });
     Promise.all([userP, state.store.load()]).then(function (r) {
       var u = r[0], data = r[1];
@@ -175,7 +175,7 @@
       return state.store.load().then(function (d) { applyData(d); renderTags(); render(); renderFoot(); });
     });
   }
-  // 情報の保存領域(16×30,000バイト)がほぼいっぱいなら、画像を添付する前に止める
+  // 情報の保存領域(分割数×30,000バイト)がほぼいっぱいなら、画像を添付する前に止める
   function roomFor(n) {
     var u = state.store.usage();
     return u.total - u.used > 700 * Math.max(1, n);

@@ -1,5 +1,5 @@
 /*!
- * リファレンスボード for Confluence (Server / Data Center) — v1.0.0
+ * リファレンスボード for Confluence (Server / Data Center) — v1.1.0
  *
  * Pinterest のように画像・動画のリファレンスを集めて眺めるボード。
  *
@@ -7,9 +7,9 @@
  *         ボードを置くページの HTML マクロに貼る。設定は埋め込みHTML側に書くので、このファイルは編集不要。
  *
  * 保存先
- *   メタ情報 … ページの Content Property(リンク集 v3 と同じ16分割の仕組み)
+ *   メタ情報 … ページの Content Property(リンク集 v3 と同じ分割の仕組み。既定64分割 ≒ 1.9MB)
  *     ref-board-data        … 索引(タグ一覧)
- *     ref-board-data-00〜15 … 各リファレンスの情報(1個30,000バイトまで)
+ *     ref-board-data-00〜63 … 各リファレンスの情報(1個30,000バイトまで。SHARDS で変更)
  *   画像本体 … ドラッグ&ドロップ・貼り付け・「コピーして保存」したものは、ボードのページの添付ファイル
  *     rb-<ID>.<拡張子>  元画像
  *     rb-<ID>-t.webp     一覧用の縮小画像(大きい画像のときだけ)
@@ -26,11 +26,12 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var CONFIG = {
     OWNER_USERNAME: '',                 // 自分のConfluenceユーザー名(一致する人だけ編集UIを表示)
     TARGET_PAGE_ID: '',                 // 保存先ページのID。空なら今開いているページ(追加専用ページから使うときに指定)
-    PROPERTY_KEY: 'ref-board-data',     // 索引のキー。本体は <KEY>-00〜15 に分割保存(通常は変更しない)
+    PROPERTY_KEY: 'ref-board-data',     // 索引のキー。本体は <KEY>-00〜 に分割保存(通常は変更しない)
+    SHARDS: 64,                         // 分割数(1個30,000バイト)。64で約1.9MB・Pinterestの画像で約4,500件。最大99。増やすのはよいが減らさない
     QUICK_ADD_PAGE_URL: '',             // 追加用ポップアップページのURL(空ならボードのページで追加画面を開く)
     DEFAULT_TAGS: ['UI', 'モーション', '質感・マテリアル', 'タイポグラフィ', '配色', 'エフェクト', 'キャラクター', '背景・美術', '写真'],
     DELETE_ATTACHMENTS: true,           // リファレンスを削除したとき、ページの添付画像もゴミ箱へ移す

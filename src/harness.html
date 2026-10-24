@@ -120,6 +120,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
 const ORIGIN = (() => { try { return location.origin && location.origin !== 'null' ? location.origin : 'https://confluence.example'; } catch { return 'https://confluence.example'; } })();
+const SH = 64;
 const QUICK_URL = ORIGIN + '/wiki/pages/viewpage.action?pageId=900';
 
 // ================= placeholder images for external URLs =================
@@ -325,11 +326,11 @@ async function sampleItems() {
   return out;
 }
 function packShards(page, items, fillTo) {
-  const shards = Array.from({ length: 16 }, () => ({ items: [] }));
+  const shards = Array.from({ length: SH }, () => ({ items: [] }));
   let s = 0;
   for (const it of items) {
-    while (s < 16) { shards[s].items.push(it); if (bytes(shards[s]) <= (fillTo || 30000)) break; shards[s].items.pop(); s++; }
-    if (s >= 16) break;
+    while (s < SH) { shards[s].items.push(it); if (bytes(shards[s]) <= (fillTo || 30000)) break; shards[s].items.pop(); s++; }
+    if (s >= SH) break;
   }
   if (fillTo) shards.forEach((v) => { const last = v.items[v.items.length - 1]; if (last) last.memo += '.'.repeat(Math.max(0, 29995 - bytes(v))); });
   shards.forEach((v, i) => { if (v.items.length) CF.props.set(`${page}|ref-board-data-${String(i).padStart(2, '0')}`, { value: v, version: 1 }); });
@@ -341,7 +342,7 @@ async function reset() {
   if (resetting) return; resetting = true;
   clearBoard(); log.length = 0;
   try { Object.keys(localStorage).filter((k) => /^rb-/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch {}
-  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: 16, tags: TAGS }, version: 1 });
+  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: SH, tags: TAGS }, version: 1 });
   packShards('100', await sampleItems());
   $('selUser').value = 'kojing'; $('selSpace').value = '';
   openMain(); loadWeb(); $('popupFrame').srcdoc = '<p style="font:13px system-ui;color:#777;padding:16px">上のWebページで「ブックマークレットを押す」と、ここに追加画面が開きます。</p>';
@@ -355,13 +356,13 @@ async function make300() {
     const [w, h] = ratios[i % ratios.length];
     return { id: id(), kind: 'image', title: i % 4 ? `サンプル ${i + 1}` : '', tags: [kinds[i % kinds.length]], memo: '', src: IMG('s' + i, w, h), w, h, page: `https://dribbble.example/shots/${i}`, createdAt: at(i) };
   });
-  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: 16, tags: kinds }, version: 1 });
+  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: SH, tags: kinds }, version: 1 });
   packShards('100', list); openMain();
 }
 function makeFull() {
   clearBoard();
-  const list = Array.from({ length: 4000 }, (_, i) => ({ id: id(), kind: 'image', title: `容量テスト ${i + 1}`, tags: ['要確認'], memo: 'メモ', src: IMG('full' + i, 1000, 1000), w: 1000, h: 1000, createdAt: at(i) }));
-  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: 16, tags: ['要確認'] }, version: 1 });
+  const list = Array.from({ length: 16000 }, (_, i) => ({ id: id(), kind: 'image', title: `容量テスト ${i + 1}`, tags: ['要確認'], memo: 'メモ', src: IMG('full' + i, 1000, 1000), w: 1000, h: 1000, createdAt: at(i) }));
+  CF.props.set('100|ref-board-data', { value: { schema: 2, shards: SH, tags: ['要確認'] }, version: 1 });
   packShards('100', list, 30000); openMain();
 }
 
@@ -435,7 +436,7 @@ let rq = 0;
 function scheduleRender() { if (!rq) rq = requestAnimationFrame(() => { rq = 0; renderSide(); }); }
 function renderSide() {
   const rows = []; let total = 0;
-  const keys = ['ref-board-data', ...Array.from({ length: 16 }, (_, i) => 'ref-board-data-' + String(i).padStart(2, '0'))];
+  const keys = ['ref-board-data', ...Array.from({ length: SH }, (_, i) => 'ref-board-data-' + String(i).padStart(2, '0'))];
   for (const k of keys) {
     const p = CF.props.get('100|' + k); const b = p ? bytes(p.value) : 0; if (k !== 'ref-board-data') total += b;
     const cnt = p && p.value && Array.isArray(p.value.items) ? p.value.items.length : (p ? '–' : '');
@@ -443,7 +444,7 @@ function renderSide() {
     rows.push(`<tr><td class="k">${k === 'ref-board-data' ? 'ref-board-data（索引）' : k.slice(-2)}</td><td>${p ? cnt : '<span class="hint">–</span>'}</td><td>${p ? b.toLocaleString() : ''}</td><td>${p ? `<div class="meter"><i class="${cls}" style="width:${pct}%"></i></div>` : ''}</td></tr>`);
   }
   $('propRows').innerHTML = rows.join('');
-  $('propTotal').textContent = `${(total / 1024).toFixed(1)} KB / 468.8 KB（16×30,000バイト）`;
+  $('propTotal').textContent = `${(total / 1024).toFixed(1)} KB / ${(SH * 30000 / 1024).toFixed(1)} KB（${SH}×30,000バイト）`;
   const atts = [...CF.atts.values()].reverse();
   $('atts').innerHTML = atts.map((a) => `<li class="${a.trash ? 'trash' : ''}"><img src="${a.url}" alt=""><span class="n" title="${esc(a.name)}">${esc(a.name)}</span><span class="s">${a.trash ? 'ゴミ箱' : Math.max(1, Math.round(a.size / 1024)) + ' KB'}</span></li>`).join('') || '<li><span></span><span class="hint">添付はありません</span><span></span></li>';
   const L = $('log'); const atBottom = L.scrollHeight - L.scrollTop - L.clientHeight < 30;
@@ -489,7 +490,7 @@ const CHECKS = [
     ['スペースによる編集の無効化', '「スペース」を PUBLICWIKI にすると、本人でも閲覧のみになります。'],
   ]],
   ['保存容量', [
-    ['16個に分けて保存', '「保存先」で 00〜15 の件数と使用量を確認できます。ボードの下にも使用率が出ます。'],
+    ['64個に分けて保存', '「保存先」で 00〜63 の件数と使用量を確認できます（約1.9MB）。ボードの下にも使用率が出ます。'],
     ['いっぱいのときの表示', '「容量ぎりぎり」→「画像URLを Ctrl+V」で追加しようとすると、画像を添付する前に「情報の保存領域がいっぱいです」と出て止まります。', 'full'],
   ]],
 ];

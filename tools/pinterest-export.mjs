@@ -16,7 +16,7 @@ const USER = process.argv[2] || process.env.PINTEREST_USER || 'pinkojing';
 const BOARDS = (process.argv[3] || process.env.PINTEREST_BOARDS || 'ft').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const OUT = `data/pinterest/${USER}.json`;
 const MEMO_MAX = 140;          // ボードの保存領域(約480KB)に収めるためメモは短くする
-const CAPACITY = 16 * 30000;
+const CAPACITY = 64 * 30000;   // ボード側の SHARDS(既定64)×30,000バイト
 const ORIGIN = 'https://www.pinterest.com';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

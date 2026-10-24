@@ -1,7 +1,7 @@
 # pinboard
 
 Confluence (Server / Data Center) のページに置く、Pinterest 風のリファレンスボード(画像・動画)。
-リンク集 v3 と同じ仕組み(HTMLマクロ + 添付JS、Content Property 16分割、本人のみ編集)で動きます。
+リンク集 v3 と同じ仕組み(HTMLマクロ + 添付JS、Content Property 分割保存、本人のみ編集)で動きます。
 
 ## 配布ファイル(`dist/`)
 
@@ -22,7 +22,7 @@ Confluence (Server / Data Center) のページに置く、Pinterest 風のリフ
 
 ## 保存先
 
-- 情報(タイトル・タグ・メモ・URL など): ページの Content Property `ref-board-data`(索引)と `ref-board-data-00〜15`(1個 30,000 バイトまで)
+- 情報(タイトル・タグ・メモ・URL など): ページの Content Property `ref-board-data`(索引)と `ref-board-data-00〜63`(1個 30,000 バイトまで、既定64個 ≒ 1.9MB。`SHARDS` で最大99個)
 - 画像本体: ボードのページの添付 `rb-<ID>.<拡張子>`、大きい画像は一覧用の `rb-<ID>-t.webp` も
 - URL で保存したもの(ブックマークレット・URL指定)は外部 URL をそのまま表示する
 
@@ -48,7 +48,7 @@ python3 build.py
 ```
 
 - `src/board.js` … 設定・共通処理・添付・画像処理(ここに他のファイルを差し込む)
-- `src/lcstore.js` … リンク集 v3 と共通の保存モジュール(16分割)
+- `src/lcstore.js` … リンク集 v3 と共通の保存モジュール(分割数を指定可)
 - `src/board-ui.js` … ボード・詳細・各モーダル
 - `src/quick.js` … ブックマークレットと追加画面
 - `src/css.js` … スタイル

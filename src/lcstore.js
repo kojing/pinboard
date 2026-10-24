@@ -1,10 +1,12 @@
   // BEGIN LC STORE (link-collector.html と link-collector-quick-add.html で同じ内容)
-  // リンク本体を16個のContent Property(<KEY>-00〜-15)に分けて保存する。<KEY>本体はタグと取込状況だけの小さな索引。
+  // リンク本体を複数のContent Property(<KEY>-00〜、既定16個・最大99個)に分けて保存する。<KEY>本体はタグと取込状況だけの小さな索引。
   // 1個あたりは公式ドキュメントの32KBより少し小さい30,000バイト(UTF-8)までに抑える。
   var LCStore = (function () {
-    var SHARDS = 16, LIMIT = 30000;
+    var DEFAULT_SHARDS = 16, LIMIT = 30000;
     function size(v) { return new TextEncoder().encode(JSON.stringify(v)).length; }
-    function create(pageId, metaKey, fetchImpl) {
+    // shards: 分割数。増やすのは後からでもよいが、減らすと後ろの領域の項目が読めなくなるので減らさない
+    function create(pageId, metaKey, fetchImpl, shards) {
+      var SHARDS = Math.max(1, Math.min(99, Math.floor(+shards) || DEFAULT_SHARDS));
       var f = fetchImpl || window.fetch.bind(window);
       var base = '/rest/api/content/' + encodeURIComponent(pageId) + '/property';
       var st = { meta: {}, shardBytes: [], shardOf: new Map(), snap: new Map(), tagsSnap: null, legacy: null };
@@ -69,7 +71,7 @@
         while (pending.length) {
           var pick = -1;
           for (var i = 0; i < SHARDS; i++) if (!tried.has(i) && (pick < 0 || (st.shardBytes[i] || 0) < (st.shardBytes[pick] || 0))) pick = i;
-          if (pick < 0) throw new Error('保存領域(16個)がいっぱいです。' + pending.length + '件を保存できませんでした。不要なリンクを削除してください。');
+          if (pick < 0) throw new Error('保存領域(' + SHARDS + '個)がいっぱいです。' + pending.length + '件を保存できませんでした。不要なリンクを削除してください。');
           tried.add(pick);
           var batch = pending;
           var r = await mutateShard(pick, function (v) {
@@ -189,8 +191,8 @@
         var used = 0; for (var i = 0; i < SHARDS; i++) used += st.shardBytes[i] || 0;
         return { used: used, total: SHARDS * LIMIT };
       }
-      return { load: load, migrate: migrate, needsMigration: function () { return !!st.legacy; }, sync: sync, addItems: addItems, mutateMeta: mutateMeta, usage: usage, meta: function () { return st.meta; } };
+      return { shards: SHARDS, load: load, migrate: migrate, needsMigration: function () { return !!st.legacy; }, sync: sync, addItems: addItems, mutateMeta: mutateMeta, usage: usage, meta: function () { return st.meta; } };
     }
-    return { create: create, SHARDS: SHARDS, LIMIT: LIMIT };
+    return { create: create, SHARDS: DEFAULT_SHARDS, LIMIT: LIMIT };
   })();
   // END LC STORE

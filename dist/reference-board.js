@@ -1,5 +1,5 @@
 /*!
- * リファレンスボード for Confluence (Server / Data Center) — v1.0.0
+ * リファレンスボード for Confluence (Server / Data Center) — v1.1.0
  *
  * Pinterest のように画像・動画のリファレンスを集めて眺めるボード。
  *
@@ -7,9 +7,9 @@
  *         ボードを置くページの HTML マクロに貼る。設定は埋め込みHTML側に書くので、このファイルは編集不要。
  *
  * 保存先
- *   メタ情報 … ページの Content Property(リンク集 v3 と同じ16分割の仕組み)
+ *   メタ情報 … ページの Content Property(リンク集 v3 と同じ分割の仕組み。既定64分割 ≒ 1.9MB)
  *     ref-board-data        … 索引(タグ一覧)
- *     ref-board-data-00〜15 … 各リファレンスの情報(1個30,000バイトまで)
+ *     ref-board-data-00〜63 … 各リファレンスの情報(1個30,000バイトまで。SHARDS で変更)
  *   画像本体 … ドラッグ&ドロップ・貼り付け・「コピーして保存」したものは、ボードのページの添付ファイル
  *     rb-<ID>.<拡張子>  元画像
  *     rb-<ID>-t.webp     一覧用の縮小画像(大きい画像のときだけ)
@@ -26,11 +26,12 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var CONFIG = {
     OWNER_USERNAME: '',                 // 自分のConfluenceユーザー名(一致する人だけ編集UIを表示)
     TARGET_PAGE_ID: '',                 // 保存先ページのID。空なら今開いているページ(追加専用ページから使うときに指定)
-    PROPERTY_KEY: 'ref-board-data',     // 索引のキー。本体は <KEY>-00〜15 に分割保存(通常は変更しない)
+    PROPERTY_KEY: 'ref-board-data',     // 索引のキー。本体は <KEY>-00〜 に分割保存(通常は変更しない)
+    SHARDS: 64,                         // 分割数(1個30,000バイト)。64で約1.9MB・Pinterestの画像で約4,500件。最大99。増やすのはよいが減らさない
     QUICK_ADD_PAGE_URL: '',             // 追加用ポップアップページのURL(空ならボードのページで追加画面を開く)
     DEFAULT_TAGS: ['UI', 'モーション', '質感・マテリアル', 'タイポグラフィ', '配色', 'エフェクト', 'キャラクター', '背景・美術', '写真'],
     DELETE_ATTACHMENTS: true,           // リファレンスを削除したとき、ページの添付画像もゴミ箱へ移す
@@ -50,12 +51,14 @@
   function cfFetch(url, init) { return window.fetch(CTX + url, init); }
 
   // BEGIN LC STORE (link-collector.html と link-collector-quick-add.html で同じ内容)
-  // リンク本体を16個のContent Property(<KEY>-00〜-15)に分けて保存する。<KEY>本体はタグと取込状況だけの小さな索引。
+  // リンク本体を複数のContent Property(<KEY>-00〜、既定16個・最大99個)に分けて保存する。<KEY>本体はタグと取込状況だけの小さな索引。
   // 1個あたりは公式ドキュメントの32KBより少し小さい30,000バイト(UTF-8)までに抑える。
   var LCStore = (function () {
-    var SHARDS = 16, LIMIT = 30000;
+    var DEFAULT_SHARDS = 16, LIMIT = 30000;
     function size(v) { return new TextEncoder().encode(JSON.stringify(v)).length; }
-    function create(pageId, metaKey, fetchImpl) {
+    // shards: 分割数。増やすのは後からでもよいが、減らすと後ろの領域の項目が読めなくなるので減らさない
+    function create(pageId, metaKey, fetchImpl, shards) {
+      var SHARDS = Math.max(1, Math.min(99, Math.floor(+shards) || DEFAULT_SHARDS));
       var f = fetchImpl || window.fetch.bind(window);
       var base = '/rest/api/content/' + encodeURIComponent(pageId) + '/property';
       var st = { meta: {}, shardBytes: [], shardOf: new Map(), snap: new Map(), tagsSnap: null, legacy: null };
@@ -120,7 +123,7 @@
         while (pending.length) {
           var pick = -1;
           for (var i = 0; i < SHARDS; i++) if (!tried.has(i) && (pick < 0 || (st.shardBytes[i] || 0) < (st.shardBytes[pick] || 0))) pick = i;
-          if (pick < 0) throw new Error('保存領域(16個)がいっぱいです。' + pending.length + '件を保存できませんでした。不要なリンクを削除してください。');
+          if (pick < 0) throw new Error('保存領域(' + SHARDS + '個)がいっぱいです。' + pending.length + '件を保存できませんでした。不要なリンクを削除してください。');
           tried.add(pick);
           var batch = pending;
           var r = await mutateShard(pick, function (v) {
@@ -240,9 +243,9 @@
         var used = 0; for (var i = 0; i < SHARDS; i++) used += st.shardBytes[i] || 0;
         return { used: used, total: SHARDS * LIMIT };
       }
-      return { load: load, migrate: migrate, needsMigration: function () { return !!st.legacy; }, sync: sync, addItems: addItems, mutateMeta: mutateMeta, usage: usage, meta: function () { return st.meta; } };
+      return { shards: SHARDS, load: load, migrate: migrate, needsMigration: function () { return !!st.legacy; }, sync: sync, addItems: addItems, mutateMeta: mutateMeta, usage: usage, meta: function () { return st.meta; } };
     }
-    return { create: create, SHARDS: SHARDS, LIMIT: LIMIT };
+    return { create: create, SHARDS: DEFAULT_SHARDS, LIMIT: LIMIT };
   })();
   // END LC STORE
 
@@ -617,7 +620,7 @@
 
     if (!PAGE_ID) { setStatus('ページIDが取得できませんでした。ページを保存してから開いてください。', true); return; }
     setStatus('読み込み中…');
-    state.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch);
+    state.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch, CONFIG.SHARDS);
     var userP = apiCurrentUser().catch(function () { return null; });
     Promise.all([userP, state.store.load()]).then(function (r) {
       var u = r[0], data = r[1];
@@ -682,7 +685,7 @@
       return state.store.load().then(function (d) { applyData(d); renderTags(); render(); renderFoot(); });
     });
   }
-  // 情報の保存領域(16×30,000バイト)がほぼいっぱいなら、画像を添付する前に止める
+  // 情報の保存領域(分割数×30,000バイト)がほぼいっぱいなら、画像を添付する前に止める
   function roomFor(n) {
     var u = state.store.usage();
     return u.total - u.used > 700 * Math.max(1, n);
@@ -1548,7 +1551,7 @@
 
     // 保存先の読み込み
     if (!PAGE_ID) { setSt('保存先のページIDが分かりません。TARGET_PAGE_ID を設定してください。', true); return; }
-    st.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch);
+    st.store = LCStore.create(PAGE_ID, CONFIG.PROPERTY_KEY, cfFetch, CONFIG.SHARDS);
     Promise.all([apiCurrentUser().catch(function () { return null; }), st.store.load(), apiPageInfo(PAGE_ID).catch(function () { return null; })]).then(function (r) {
       var u = r[0], data = r[1], info = r[2];
       var name = u && (u.username || u.name);
