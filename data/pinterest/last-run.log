@@ -1,2 +1,3 @@
 Pinterest pinkojing を読み込みます
+  ft を直接は読めませんでした(BoardResource が HTTP 403 を返しました: Invalid Resource Request)
 止まりました: BoardsResource が HTTP 403 を返しました: Invalid Resource Request
