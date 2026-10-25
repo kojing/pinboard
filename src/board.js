@@ -1,5 +1,5 @@
 /*!
- * リファレンスボード for Confluence (Server / Data Center) — v1.1.0
+ * リファレンスボード for Confluence (Server / Data Center) — v1.1.1
  *
  * Pinterest のように画像・動画のリファレンスを集めて眺めるボード。
  *
@@ -26,7 +26,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.1';
   var CONFIG = {
     OWNER_USERNAME: '',                 // 自分のConfluenceユーザー名(一致する人だけ編集UIを表示)
     TARGET_PAGE_ID: '',                 // 保存先ページのID。空なら今開いているページ(追加専用ページから使うときに指定)
@@ -303,6 +303,33 @@
   if (!hostEl) { if (window.console) console.warn('[reference-board] #' + CONFIG.ROOT_ID + ' が見つかりません'); return; }
   if (hostEl.shadowRoot) return; // 二重読み込み防止
   var root = hostEl.attachShadow({ mode: 'open' });
+  // ---------- Confluence のキーボードショートカットとの共存 ----------
+  // Confluence はページ全体で e(編集)・/(検索)・c(作成)・s(共有)・[(サイドバー) などの1文字キーに反応する。
+  // ボードは Shadow DOM の中にあるため、ボードの入力欄で打ったキーはページ側からは「ボードの枠で押された」ように見え、
+  // Confluence が入力中だと気づけずにショートカットが動いてしまう。そこで
+  //   ・ボードの入力欄で打っているとき
+  //   ・詳細やモーダル(追加画面を含む)を開いているとき
+  // はキーをページ側に渡さない。それ以外(一覧を見ているだけのとき)は Confluence のショートカットがそのまま使える。
+  var KEYS = { active: function () { return false; }, handle: function () {} };
+  function isTyping(e) {
+    var t = e.composedPath ? e.composedPath()[0] : e.target;
+    return !!(t && t.nodeType === 1 && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable));
+  }
+  ['keydown', 'keypress', 'keyup'].forEach(function (type) {
+    // ボードの中で押されたキー: ボード側で処理してから、ページ側へは渡さない
+    hostEl.addEventListener(type, function (e) {
+      var active = KEYS.active();
+      if (active && type === 'keydown') KEYS.handle(e);
+      if (active || isTyping(e)) e.stopPropagation();
+    });
+    // ボードの外(ページ本体)にフォーカスがあるまま詳細などを開いているとき: 先に受け取って止める
+    window.addEventListener(type, function (e) {
+      if (!KEYS.active() || (e.composedPath && e.composedPath().indexOf(hostEl) >= 0)) return;
+      if (type === 'keydown') KEYS.handle(e);
+      e.stopPropagation();
+    }, true);
+  });
+
   var styleEl = document.createElement('style');
   styleEl.textContent = CSS();
   root.appendChild(styleEl);

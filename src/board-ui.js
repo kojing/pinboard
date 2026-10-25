@@ -105,7 +105,8 @@
     if (window.ResizeObserver) new ResizeObserver(function () { if (state.filtered.length && colCount() !== state.nCols) relayout(); }).observe(els.grid);
 
     overlay.addEventListener('mousedown', function (e) { if (e.target === overlay && !state.busy) closeModal(); });
-    document.addEventListener('keydown', onKey);
+    KEYS.active = function () { return !els.lb.hidden || !els.overlay.hidden; };
+    KEYS.handle = onKey;
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshIfStale(); });
 
     if (!PAGE_ID) { setStatus('ページIDが取得できませんでした。ページを保存してから開いてください。', true); return; }

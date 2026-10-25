@@ -79,6 +79,7 @@
   // 追加画面(ブックマークレットから ?rb_add=1 で開く)
   // ==================================================================
   function initQuickAdd() {
+    KEYS.active = function () { return true; }; // 追加画面はページ全体を覆うので、Confluence のショートカットは止める
     var st = { cands: [], sel: [], owner: false, store: null, keys: new Set(), tags: CONFIG.DEFAULT_TAGS.slice(), title: PARAMS.get('rb_title') || '', page: PARAMS.get('rb_page') || '', got: false, saving: false };
     if (!isHttp(st.page)) st.page = '';
     var app = document.createElement('div');

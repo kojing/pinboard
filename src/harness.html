@@ -235,6 +235,7 @@ window.RBMock = {
     return $('popupFrame').contentWindow;
   },
   webWin() { return $('webFrame').contentWindow; },
+  shortcut(who, key, action) { addLog(who, 'KEY', `Confluenceのショートカット「${key}」（${action}）が動きました`, 299); window.__lastShortcut = key; },
   onClose() {
     $('popupFrame').srcdoc = '<p style="font:13px system-ui;color:#777;padding:16px">追加画面は保存後に自動で閉じました。ボードのタブに戻ったとき（ここでは自動）に新しいリファレンスが反映されます。</p>';
     // 実際にはボードのタブに戻ると visibilitychange で読み直す。ここでは同じイベントを送る
@@ -251,6 +252,8 @@ var __f=window.fetch.bind(window);window.fetch=function(u,i){if(/^(blob|data):/.
 window.close=function(){parent.RBMock.onClose();};
 window.__RB_ATT_HREF=function(p,n){return parent.RBMock.attHref(p,n);};
 ${opener ? 'try{window.opener=parent.RBMock.webWin();}catch(e){}' : ''}
+(function(){var M={e:'編集',c:'作成','/':'検索',s:'共有','[':'サイドバー',m:'コメント',w:'ウォッチ',f:'お気に入り',l:'ラベル',t:'添付',b:'ブログ'};
+  document.addEventListener('keypress',function(e){var t=e.target;if(t&&(/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)||t.isContentEditable))return;if(e.ctrlKey||e.metaKey||e.altKey)return;var a=M[e.key];if(a)parent.RBMock.shortcut(${JSON.stringify(who)},e.key,a);});})();
 (function(){
   var d=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
   Object.defineProperty(HTMLImageElement.prototype,'src',{configurable:true,get:function(){return d.get.call(this);},set:function(v){v=String(v);if(parent.RBMock.showable(v)){this.setAttribute('data-ext',v);v=parent.RBMock.ph(v);}d.set.call(this,v);}});
@@ -484,6 +487,11 @@ const CHECKS = [
     ['コピーして保存（取得できない画像はURL）', 'チェックを入れて pbs.example の画像も選ぶと、「1件はコピーできずURLで保存」と出ます。'],
     ['消えやすいURLの注意', 'Instagram の画像を選ぶと「コピーして保存がおすすめ」と出ます。'],
     ['追加済みの表示', 'もう一度ブックマークレットを押すと、追加した画像は「追加済み」になり選べません。'],
+  ]],
+  ['Confluence のショートカットとの共存', [
+    ['一覧ではショートカットが使える', 'ボードの何もないところを押してから e や [ を押すと、「保存先」の通信ログに「Confluenceのショートカット」が出ます（実際のページでは編集やサイドバー）。'],
+    ['入力中は反応しない', '検索欄やタイトル欄で e・s・c などを打っても、ショートカットは動きません。'],
+    ['詳細・モーダルを開いている間は反応しない', '詳細で e を押しても編集画面に移りません。← → と Esc はボード側で使えます。'],
   ]],
   ['見る人・場所による制御', [
     ['本人以外は閲覧のみ', '「見ている人」を「他の人」にすると、追加・編集・削除が出ず、ドロップも受け付けません。'],
