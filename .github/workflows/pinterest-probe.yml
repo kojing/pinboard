@@ -1,0 +1,20 @@
+name: Pinterest の取り方を調べる(一時)
+on:
+  push:
+    branches: [main]
+    paths: [tools/pinterest-probe.mjs, .github/workflows/pinterest-probe.yml]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: mkdir -p data/pinterest && node tools/pinterest-probe.mjs 2>&1 | tee data/pinterest/probe.log
+      - if: always()
+        run: |
+          git add data/pinterest/probe.log
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Pinterest の調査ログ" && git pull --rebase origin main && git push origin HEAD:main || true
