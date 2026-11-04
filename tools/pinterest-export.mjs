@@ -83,9 +83,11 @@ async function paged(name, options, sourceUrl, expected = 0) {
     const res = await resource(name, bm ? { ...options, bookmarks: [bm] } : options, sourceUrl);
     const list = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.results) ? res.data.results : [];
     const end = !res.bookmark || res.bookmark === '-end-' || seen.has(res.bookmark) || !list.length;
-    if (end && expected && all.length + list.length < expected * 0.9 && retry < 4) {
-      retry++; console.log(`  途中で終わりと返ってきたので取り直します(${all.length + list.length}/${expected}、${retry}回目)`);
-      await sleep(3000 * retry); n--; continue;
+    // Pinterest は接続(cookie)によって、途中なのに「終わり」と返すことがある。同じ接続で取り直しても変わらないので、
+    // 接続を作り直して同じ位置から読み直す(位置を表す bookmark は接続が変わっても使える)
+    if (end && expected && all.length + list.length < expected * 0.9 && retry < 8) {
+      retry++; console.log(`  途中で終わりと返ってきたので、接続を作り直して取り直します(${all.length + list.length}/${expected}、${retry}回目)`);
+      await sleep(2000 * retry); jar.clear(); await warmUp(); n--; continue;
     }
     retry = 0;
     all.push(...list);
@@ -176,7 +178,8 @@ async function main() {
   for (const [i, b] of boards.entries()) {
     const name = String(b.name || b.url).trim();
     const pins = await paged('BoardFeedResource', {
-      board_id: b.id, page_size: 25
+      board_id: b.id, board_url: b.url, currentFilter: -1, field_set_key: 'react_grid_pin', filter_section_pins: true,
+      sort: 'default', layout: 'default', redux_normalize_feed: true, page_size: 50
     }, b.url, b.pin_count || 0);
     pins.forEach((p) => add(p, [name]));
     let secCount = 0;
