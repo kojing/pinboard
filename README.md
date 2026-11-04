@@ -40,20 +40,61 @@ Confluence (Server / Data Center) のページに置く、Pinterest 風のリフ
 GitHub Actions が Pinterest(pinkojing)の ft ボードを毎週読み、`data/pinterest/pinkojing.json` を更新します。
 このJSONをボードの「インポート」に読み込むと、タグなしで取り込まれます(詳しくは `data/pinterest/README.md`)。
 
+## 構成
+
+```
+pinboard/
+├─ dist/                              配布物(build.py が作る。Confluence に置くのはここだけ)
+│  ├─ reference-board.js                本体(v1.1.1)
+│  ├─ reference-board.embed.html        ボードのページの HTML マクロ
+│  ├─ reference-board-quick-add.embed.html  追加専用ページの HTML マクロ(任意)
+│  └─ reference-board-check.html        動作確認ページ(模擬 Confluence)
+├─ src/                               ソース(build.py で 1 つの JS に組み立てる)
+│  ├─ board.js                          設定・共通処理・添付・画像処理・ショートカットの切り分け(外枠)
+│  ├─ lcstore.js                        保存モジュール(リンク集 v3 と共通、分割数を指定可)
+│  ├─ board-ui.js                       ボード・詳細・各モーダル
+│  ├─ quick.js                          ブックマークレットと追加画面
+│  ├─ css.js                            スタイル
+│  └─ harness.html, harness-lc.css      動作確認ページ
+├─ data/pinterest/                    Pinterest の書き出し(Actions が更新)
+│  ├─ pinkojing.json                    ft ボードのピン一覧(ボードの「インポート」用)
+│  └─ last-run.log                      最後の実行ログ
+├─ tools/pinterest-export.mjs         Pinterest の書き出しスクリプト
+├─ .github/workflows/pinterest-export.yml  毎週月曜 3:17(日本時間)と手動で実行
+├─ test/                              Playwright の操作シナリオ
+└─ build.py                           src/ → dist/
+```
+
+### データの流れ
+
+```
+Web のページ ──ブックマークレット──┐
+PC の画像 ──ドロップ / Ctrl+V ────┼─→ ボード(Confluence のページ)
+Pinterest ft ─Actions(毎週)→ data/pinterest/pinkojing.json ─インポート─┘
+                                     │
+               情報: Content Property ref-board-data-00〜63
+               画像: ページの添付 rb-<ID>.<拡張子>(URL 保存のものは外部 URL)
+```
+
+### テスト
+
+リポジトリ直下で `python3 -m http.server 8765` を起動してから実行します(Playwright が必要)。
+
+| ファイル | 確かめること |
+| --- | --- |
+| `test/t1.py` | 動作確認ページが開き、カードが並ぶ |
+| `test/t2.py` | ドロップ・貼り付け・URL 追加・詳細・削除・編集 |
+| `test/t3.py` | ブックマークレット、閲覧のみ、300件、容量いっぱい |
+| `test/t4.py` | 追加画面・各モーダル・スマホ幅の画面写真 |
+| `test/t5.py` | 一覧は画像だけ、詳細からのダウンロード |
+| `test/t6.py` | Pinterest の JSON をインポート |
+| `test/t7.py` | 64分割での取り込みと読み直し |
+| `test/t8.py` | Confluence のショートカットとの共存 |
+
 ## 開発
 
-ソースは `src/` に分けてあり、`build.py` で `dist/` を作ります。
+ソースは `src/` に分けてあり、`build.py` で `dist/` を作ります。JS を変えたら `src/board.js` の `VERSION` と、埋め込み HTML の `?v=` を上げます。
 
 ```sh
 python3 build.py
 ```
-
-- `src/board.js` … 設定・共通処理・添付・画像処理(ここに他のファイルを差し込む)
-- `src/lcstore.js` … リンク集 v3 と共通の保存モジュール(分割数を指定可)
-- `src/board-ui.js` … ボード・詳細・各モーダル
-- `src/quick.js` … ブックマークレットと追加画面
-- `src/css.js` … スタイル
-- `src/harness.html`, `src/harness-lc.css` … 動作確認ページ
-- `tools/pinterest-export.mjs` … Pinterest の書き出し(Actions から実行)
-
-`test/` は Playwright のシナリオ。リポジトリ直下で `python3 -m http.server 8765` を起動してから実行します。

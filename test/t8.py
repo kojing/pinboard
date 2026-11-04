@@ -6,7 +6,7 @@ SR = FR + ".contentDocument.getElementById('ref-board-root').shadowRoot"
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(); pg = await b.new_page(viewport={'width':1440,'height':1000})
-        await pg.goto('http://localhost:8766/' + PAGE); await pg.wait_for_timeout(3000)
+        await pg.goto('http://localhost:8765/' + PAGE); await pg.wait_for_timeout(3000)
         ev = lambda js: pg.evaluate(js)
         fr = pg.frame_locator('#mainFrame')
         async def fired(label, action):
