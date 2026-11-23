@@ -30,7 +30,7 @@ Confluence (Server / Data Center) のページに置く、Pinterest 風のリフ
 
 - 一覧は画像・動画だけの石積み表示。操作はすべて詳細画面(← → で移動、Esc で閉じる)
 - 追加(本人のみ): 画像ファイルのドラッグ&ドロップ / Ctrl+V / ファイル選択、URL 指定(画像・YouTube・Vimeo・mp4)、他タブの画像のドラッグ
-- ブックマークレット: ページ内の画像・動画を大きい順に候補にし、選んで追加。「Confluenceにコピー」で添付保存も可(取得できない画像は URL 保存)
+- ブックマークレット: このボードのページを `?rb_add=1` 付きのポップアップで開き、ヘッダー・サイドバーを隠した登録用の見た目にする。ページ本文の主要な画像・動画(大きいもの。header・nav・aside・footer の中は除く)を最初から選んだ状態で、選び直して追加。「Confluenceにコピー」で添付保存も可(取得できない画像は URL 保存)
 - 詳細からダウンロード(画像、動画はファイル形式のときのみ)
 - 検索、画像/動画の切り替え、タグで絞り込み、JSON のインポート・エクスポート
 - Confluence のキーボードショートカット(e 編集、/ 検索 など)は一覧では使えて、ボードの入力欄での入力中と、詳細・モーダルを開いている間は反応しない
@@ -45,7 +45,7 @@ GitHub Actions が Pinterest(pinkojing)の ft ボードを毎週読み、`data/p
 ```
 pinboard/
 ├─ dist/                              配布物(build.py が作る。Confluence に置くのはここだけ)
-│  ├─ reference-board.js                本体(v1.1.1)
+│  ├─ reference-board.js                本体(v1.2.0)
 │  ├─ reference-board.embed.html        ボードのページの HTML マクロ
 │  ├─ reference-board-quick-add.embed.html  追加専用ページの HTML マクロ(任意)
 │  └─ reference-board-check.html        動作確認ページ(模擬 Confluence)
@@ -90,6 +90,7 @@ Pinterest ft ─Actions(毎週)→ data/pinterest/pinkojing.json ─インポー
 | `test/t6.py` | Pinterest の JSON をインポート |
 | `test/t7.py` | 64分割での取り込みと読み直し |
 | `test/t8.py` | Confluence のショートカットとの共存 |
+| `test/t9.py` | 追加画面の見た目(ヘッダー等を隠す)と主要画像の選択 |
 
 ## 開発
 

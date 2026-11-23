@@ -1,5 +1,5 @@
 /*!
- * リファレンスボード for Confluence (Server / Data Center) — v1.1.1
+ * リファレンスボード for Confluence (Server / Data Center) — v1.2.0
  *
  * Pinterest のように画像・動画のリファレンスを集めて眺めるボード。
  *
@@ -26,7 +26,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.1.1';
+  var VERSION = '1.2.0';
   var CONFIG = {
     OWNER_USERNAME: '',                 // 自分のConfluenceユーザー名(一致する人だけ編集UIを表示)
     TARGET_PAGE_ID: '',                 // 保存先ページのID。空なら今開いているページ(追加専用ページから使うときに指定)

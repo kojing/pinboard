@@ -230,7 +230,12 @@ window.RBMock = {
   ph: phSvg, showable,
   openPopup(url) {
     let search = ''; try { search = new URL(url, ORIGIN).search; } catch {}
-    $('popupFrame').srcdoc = SHIM({ who: 'ポップアップ', page: '900', search, opener: true }) + QUICK_EMBED + JS_TAG;
+    // 実際の Confluence のページと同じく、ヘッダー・サイドバー・本文の中にマクロがある形で開く(追加画面ではこれらが隠れる)
+    const chrome = (inner) => `<header id="header" style="position:fixed;top:0;left:0;right:0;height:40px;background:#205081;color:#fff;font:13px system-ui;padding:10px 16px;z-index:3">Confluence ヘッダー</header>
+<div class="ia-splitter-left" style="position:fixed;top:40px;left:0;bottom:0;width:220px;background:#f4f5f7;font:12px system-ui;padding:12px;z-index:2">スペースのサイドバー</div>
+<div id="main" style="margin:40px 0 0 220px;padding:20px"><h1 id="title-text" style="font:20px system-ui">リファレンス追加</h1><div id="main-content" class="wiki-content">${inner}</div></div>
+<footer id="footer" style="margin-left:220px;padding:16px;font:11px system-ui;color:#888">Powered by Confluence</footer>`;
+    $('popupFrame').srcdoc = SHIM({ who: 'ポップアップ', page: '900', search, opener: true }) + chrome(QUICK_EMBED) + JS_TAG;
     scheduleRender();
     return $('popupFrame').contentWindow;
   },
@@ -374,7 +379,7 @@ function loadWeb() {
   const im = (u, w, h, alt) => `<img src="${u}" width="${w}" height="${h}" alt="${alt || ''}" style="content:url('${phSvg(u)}')">`;
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>ゲームUIのモーション事例 12選 | デザインメモ</title>
 <meta property="og:image" content="${IMG('og-motion', 1200, 630)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<style>body{margin:0;font:14px/1.7 system-ui;color:#222;background:#fafafa}main{max-width:560px;margin:0 auto;padding:16px}h1{font-size:19px;margin:6px 0 12px}img{display:block;max-width:100%;height:auto;border-radius:6px;margin:10px 0}.row{display:flex;gap:8px}.row img{width:48%;}.icon{display:inline-block;width:20px;height:20px;margin:0 4px 0 0;vertical-align:middle}.yt{width:100%;aspect-ratio:16/9;border:0;background:#111;border-radius:6px}nav{font-size:12px;color:#888}</style></head>
+<style>body{margin:0;font:14px/1.7 system-ui;color:#222;background:#fafafa}main{max-width:560px;margin:0 auto;padding:16px}h1{font-size:19px;margin:6px 0 12px}img{display:block;max-width:100%;height:auto;border-radius:6px;margin:10px 0}.row{display:flex;gap:8px}.row img{width:48%;}.row img.rel{width:160px}.icon{display:inline-block;width:20px;height:20px;margin:0 4px 0 0;vertical-align:middle}.yt{width:100%;aspect-ratio:16/9;border:0;background:#111;border-radius:6px}nav{font-size:12px;color:#888}</style></head>
 <body><main><nav>${im(IMG('logo', 40, 40), 20, 20, 'logo').replace('<img', '<img class="icon"')} デザインメモ › モーション</nav>
 <h1>ゲームUIのモーション事例 12選</h1>
 <p>最近見て良かったUIモーションをまとめました。</p>
@@ -384,6 +389,8 @@ ${im('https://scontent.cdninstagram.example/v/reel_1080x1350.jpg?oe=6720AB12', 5
 <iframe class="yt" src="https://www.youtube.com/embed/xHevq9JjW5M" title="YouTube video" loading="lazy"></iframe>
 <video src="https://images.example/clips/gauge_1280x720.mp4" poster="${IMG('gauge-poster', 1280, 720)}" width="528" height="297" style="width:100%;height:auto;background:#222;border-radius:6px" muted></video>
 ${im(IMG('tiny-badge', 64, 64), 32, 32, 'badge')}
+<aside style="border:1px dashed #ccc;padding:8px;font-size:11px;color:#999">広告${im(IMG('ad-banner', 600, 500), 300, 250, '広告')}</aside>
+<footer style="font-size:12px;color:#888">関連記事<div class="row">${im(IMG('related-a', 400, 300), 160, 120, '関連')}${im(IMG('related-b', 400, 300), 160, 120, '関連')}${im(IMG('related-c', 400, 300), 160, 120, '関連')}</div></footer>
 </main></body></html>`;
   $('webFrame').srcdoc = html;
   $('webFrame').onload = () => {
@@ -482,6 +489,8 @@ const CHECKS = [
     ['エクスポート・インポート', 'エクスポートしたJSON、または [{"src":"…","title":"…","tags":["…"]}] を「インポート」に貼ると、重複を除いて取り込みます。'],
   ]],
   ['ブックマークレット', [
+    ['ポップアップは登録用の見た目になる', '追加画面では Confluence のヘッダー・サイドバー・ページ本文・フッターが消え、追加画面だけになります（同じページを ?rb_add=1 付きで開いています）。'],
+    ['主要な画像が選ばれた状態で開く', '本文の大きい画像と動画が最初から選ばれ、広告(aside)・関連記事の小さい画像・ロゴは「すべて表示」を押したときだけ出ます。'],
     ['ページの画像・動画が候補に並ぶ', '「Webページ」タブで「ブックマークレットを押す」。小さいロゴ・バッジは除外され、画像・YouTube・videoが大きい順に並び、一番大きいものが選ばれた状態で開きます。og:image は候補に入りません。'],
     ['複数選んで追加', '候補を押して選び、タグを付けて「○件を追加」。保存後に追加画面は自動で閉じ、ボードに反映されます。'],
     ['コピーして保存（取得できない画像はURL）', 'チェックを入れて pbs.example の画像も選ぶと、「1件はコピーできずURLで保存」と出ます。'],

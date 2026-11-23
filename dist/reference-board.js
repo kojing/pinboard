@@ -1,5 +1,5 @@
 /*!
- * リファレンスボード for Confluence (Server / Data Center) — v1.1.1
+ * リファレンスボード for Confluence (Server / Data Center) — v1.2.0
  *
  * Pinterest のように画像・動画のリファレンスを集めて眺めるボード。
  *
@@ -26,7 +26,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.1.1';
+  var VERSION = '1.2.0';
   var CONFIG = {
     OWNER_USERNAME: '',                 // 自分のConfluenceユーザー名(一致する人だけ編集UIを表示)
     TARGET_PAGE_ID: '',                 // 保存先ページのID。空なら今開いているページ(追加専用ページから使うときに指定)
@@ -1319,6 +1319,8 @@
         '<p>下のボタンをブラウザのブックマークバーにドラッグして登録します。気になる画像や動画があるページでクリックすると、そのページの画像・動画の一覧が開き、選んでボードに追加できます。</p>' +
         '<p class="rb-bm-wrap"><a class="rb-bm" href="' + esc(code) + '" onclick="return false;">' + ICON.plus + 'リファレンスに追加</a></p>' +
         '<ul class="rb-note-list">' +
+          '<li>追加画面はこのボードのページを登録用の見た目(ヘッダー・サイドバーなし)で小さなウインドウに開きます。</li>' +
+          '<li>ページ本文の大きい画像と動画が最初から選ばれています。広告・関連記事・ロゴなどは「すべて表示」で選べます。</li>' +
           '<li>YouTube・Vimeo のページや埋め込み動画は「動画」として追加されます。</li>' +
           '<li>「このページにコピーして保存」を選ぶと、画像を取得できるサイトではConfluenceに添付します。取得できないサイトはURLで保存します。</li>' +
           (CONFIG.QUICK_ADD_PAGE_URL ? '' : '<li>追加画面はこのボードのページで開きます。別の軽いページを用意する場合は <code>QUICK_ADD_PAGE_URL</code> を設定してください。</li>') +
@@ -1361,31 +1363,41 @@
       if (link && /\.(jpe?g|png|gif|webp|avif)(\?|#|$)/i.test(link.getAttribute('href'))) best = link.getAttribute('href');
       return best;
     }
+    var CHROME = 'header,nav,footer,aside,[role=banner],[role=navigation],[role=contentinfo],[role=complementary]';
+    function shown(el) { var r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), chrome: !!(el.closest && el.closest(CHROME)) }; }
     var y = yt(L.href), v = vm(L.href), ogi = meta('og:image') || meta('twitter:image');
-    if (y) push(ytItem(y, /\/shorts\//.test(L.href), 4e9));
-    if (v) push({ kind: 'video', src: 'https://vimeo.com/' + v, thumb: ogi ? abs(ogi) : '', score: 4e9 });
+    if (y) { push(ytItem(y, /\/shorts\//.test(L.href), 4e9)); out[out.length - 1].main = 1; }
+    if (v) push({ kind: 'video', src: 'https://vimeo.com/' + v, thumb: ogi ? abs(ogi) : '', score: 4e9, main: 1 });
     Array.prototype.forEach.call(D.querySelectorAll('iframe[src]'), function (f) {
-      var s = f.getAttribute('src'), a = yt(s), b = vm(s), r = f.getBoundingClientRect(), area = Math.round(r.width * r.height);
-      if (a) push(ytItem(a, false, area)); else if (b) push({ kind: 'video', src: 'https://vimeo.com/' + b, score: area });
+      var s = f.getAttribute('src'), a = yt(s), b = vm(s), d = shown(f), area = d.w * d.h, big = d.w >= 300 && !d.chrome ? 1 : 0;
+      if (a) { push(ytItem(a, false, area)); if (out.length && out[out.length - 1].src.indexOf(a) >= 0) out[out.length - 1].main = big; }
+      else if (b) push({ kind: 'video', src: 'https://vimeo.com/' + b, score: area, main: big });
     });
     Array.prototype.forEach.call(D.querySelectorAll('video'), function (el) {
       var s = el.currentSrc || el.getAttribute('src') || ((el.querySelector('source[src]') || {}).src) || '';
-      var poster = el.getAttribute('poster') ? abs(el.getAttribute('poster')) : '', r = el.getBoundingClientRect();
-      var area = (el.videoWidth * el.videoHeight) || Math.round(r.width * r.height);
-      if (s && !/^(blob|data):/.test(s)) push({ kind: 'video', src: s, thumb: poster, w: el.videoWidth || 0, h: el.videoHeight || 0, score: area });
-      else if (poster) push({ kind: 'image', src: poster, w: el.videoWidth || 0, h: el.videoHeight || 0, score: area, alt: 'video poster' });
+      var poster = el.getAttribute('poster') ? abs(el.getAttribute('poster')) : '', d = shown(el);
+      var area = (el.videoWidth * el.videoHeight) || d.w * d.h, big = d.w >= 300 && !d.chrome ? 1 : 0;
+      if (s && !/^(blob|data):/.test(s)) push({ kind: 'video', src: s, thumb: poster, w: el.videoWidth || 0, h: el.videoHeight || 0, score: area, main: big });
+      else if (poster) push({ kind: 'image', src: poster, w: el.videoWidth || 0, h: el.videoHeight || 0, score: area, alt: 'video poster', main: big });
     });
     Array.prototype.forEach.call(D.images, function (img) {
       var r = img.getBoundingClientRect(), w = img.naturalWidth || Math.round(r.width), h = img.naturalHeight || Math.round(r.height);
       if (w < 120 || h < 120) return;
       var s = largest(img);
       if (!s || /^(data|blob):/.test(s)) return;
-      push({ kind: 'image', src: s, w: w, h: h, score: w * h, alt: String(img.alt || '').slice(0, 200) });
+      var d = shown(img);
+      push({ kind: 'image', src: s, w: w, h: h, score: w * h, alt: String(img.alt || '').slice(0, 200), dw: d.w, dh: d.h, chrome: d.chrome });
     });
-    out.sort(function (a, b) { return b.score - a.score; });
+    var top = 0;
+    out.forEach(function (o) { if (o.kind === 'image' && !o.chrome && o.dw >= 200 && o.dh >= 120 && o.score > top) top = o.score; });
+    out.forEach(function (o) {
+      if (o.kind === 'image' && o.main === undefined) o.main = !o.chrome && o.dw >= 200 && o.dh >= 120 && o.score >= top * 0.2 ? 1 : 0;
+      delete o.dw; delete o.dh; delete o.chrome;
+    });
+    out.sort(function (a, b) { return (b.main || 0) - (a.main || 0) || b.score - a.score; });
     out = out.slice(0, 120);
     var payload = { type: 'rb-payload', v: 1, title: D.title, page: L.href, items: out };
-    var w = window.open(T + (T.indexOf('?') < 0 ? '?' : '&') + 'rb_add=1&rb_title=' + encodeURIComponent(String(D.title).slice(0, 150)) + '&rb_page=' + encodeURIComponent(L.href.slice(0, 1500)), 'rb_add', 'width=1040,height=800');
+    var w = window.open(T + (T.indexOf('?') < 0 ? '?' : '&') + 'rb_add=1&rb_title=' + encodeURIComponent(String(D.title).slice(0, 150)) + '&rb_page=' + encodeURIComponent(L.href.slice(0, 1500)), 'rb_add', 'width=980,height=760,left=' + Math.max(0, Math.round((screen.availWidth - 980) / 2)) + ',top=' + Math.max(0, Math.round((screen.availHeight - 760) / 2)));
     if (!w) { alert('ポップアップがブロックされました。このサイトでポップアップを許可してください。'); return; }
     function get(src) {
       return fetch(src, { mode: 'cors', credentials: 'omit' }).then(function (r) { if (!r.ok) throw 0; return r.blob(); })
@@ -1412,7 +1424,19 @@
   // ==================================================================
   function initQuickAdd() {
     KEYS.active = function () { return true; }; // 追加画面はページ全体を覆うので、Confluence のショートカットは止める
-    var st = { cands: [], sel: [], owner: false, store: null, keys: new Set(), tags: CONFIG.DEFAULT_TAGS.slice(), title: PARAMS.get('rb_title') || '', page: PARAMS.get('rb_page') || '', got: false, saving: false };
+    // 登録用の見た目: Confluence のヘッダー・サイドバー・フッター・ページ本文をすべて隠し、追加画面だけにする
+    // (ボードの要素を body の直下に移し、それ以外の body の子を非表示にする)
+    try {
+      document.body.appendChild(hostEl);
+      var hide = document.createElement('style');
+      hide.id = 'rb-quick-chrome';
+      hide.textContent = 'html,body{overflow:hidden!important;height:100%!important;margin:0!important;padding:0!important;background:#F4F5F7!important}' +
+        'body>*:not(#' + CONFIG.ROOT_ID + '):not(script):not(style):not(link){display:none!important}' +
+        '#' + CONFIG.ROOT_ID + '{display:block!important}';
+      document.head.appendChild(hide);
+      document.title = 'リファレンスに追加';
+    } catch (_) {}
+    var st = { cands: [], sel: [], owner: false, store: null, keys: new Set(), tags: CONFIG.DEFAULT_TAGS.slice(), title: PARAMS.get('rb_title') || '', page: PARAMS.get('rb_page') || '', got: false, saving: false, onlyMain: true };
     if (!isHttp(st.page)) st.page = '';
     var app = document.createElement('div');
     app.className = 'rb-qa';
@@ -1424,6 +1448,7 @@
       '<div class="rb-qa-main">' +
         '<section class="rb-qa-cands" aria-label="ページ内の画像・動画">' +
           '<div class="rb-qa-tools"><span class="rb-qa-hint">読み込み中…</span><span class="rb-spacer"></span>' +
+            '<button type="button" class="rb-btn rb-qa-scope" aria-pressed="true" hidden></button>' +
             '<button type="button" class="rb-btn rb-qa-all">すべて選ぶ</button><button type="button" class="rb-btn rb-qa-none">選択を解除</button></div>' +
           '<div class="rb-qa-grid"></div>' +
           '<form class="rb-qa-manual"><input class="rb-in" type="url" placeholder="一覧にない画像・動画のURLを貼り付けて候補に足す"><button class="rb-btn" type="submit">足す</button></form>' +
@@ -1477,8 +1502,16 @@
         grid.innerHTML = '<div class="rb-empty">' + (st.got ? 'このページでは画像・動画が見つかりませんでした。下の欄にURLを貼り付けて追加できます。' : 'ページから画像を受け取れませんでした。ブックマークレットから開き直すか、下の欄にURLを貼り付けてください。') + '</div>';
         hint.textContent = ''; refreshInfo(); return;
       }
-      hint.textContent = st.cands.length + '件の画像・動画が見つかりました。追加するものを選んでください';
+      var nMain = st.cands.filter(function (c) { return c.main; }).length;
+      var scope = $('.rb-qa-scope');
+      var limited = st.onlyMain && nMain > 0 && nMain < st.cands.length;
+      scope.hidden = !(nMain > 0 && nMain < st.cands.length);
+      scope.textContent = limited ? 'すべて表示(' + st.cands.length + ')' : '主要な画像だけ(' + nMain + ')';
+      hint.textContent = limited
+        ? 'ページ内の主要な画像・動画 ' + nMain + '件を選んであります。外したいものを押してください'
+        : st.cands.length + '件の画像・動画が見つかりました。追加するものを選んでください';
       grid.innerHTML = st.cands.map(function (c, i) {
+        if (limited && !c.main && st.sel.indexOf(i) < 0) return '';
         var done = st.keys.has(candKey(c));
         var on = st.sel.indexOf(i) >= 0;
         var th = c.thumb || (c.kind === 'image' ? c.src : (youtubeId(c.src) ? 'https://i.ytimg.com/vi/' + youtubeId(c.src) + '/hqdefault.jpg' : ''));
@@ -1506,11 +1539,12 @@
     }, true);
     $('.rb-qa-all').onclick = function () { st.sel = st.cands.map(function (c, i) { return i; }).filter(function (i) { return !st.keys.has(candKey(st.cands[i])); }); drawGrid(); };
     $('.rb-qa-none').onclick = function () { st.sel = []; drawGrid(); };
+    $('.rb-qa-scope').onclick = function () { st.onlyMain = !st.onlyMain; drawGrid(); };
     $('.rb-qa-manual').onsubmit = function (e) {
       e.preventDefault();
       var inp = this.querySelector('input'), s = inp.value.trim();
       if (!isHttp(s)) { setSt('http(s):// で始まるURLを入れてください', true); return; }
-      var c = { kind: videoProvider(s) ? 'video' : 'image', src: s };
+      var c = { kind: videoProvider(s) ? 'video' : 'image', src: s, main: 1 };
       if (!st.cands.some(function (x) { return x.src === s; })) { st.cands.unshift(c); st.sel = st.sel.map(function (i) { return i + 1; }); st.sel.push(0); }
       inp.value = ''; setSt(''); drawGrid();
     };
@@ -1533,6 +1567,7 @@
       if (isHttp(c.thumb)) o.thumb = String(c.thumb).slice(0, 2000);
       if (+c.w > 0 && +c.h > 0) { o.w = Math.round(+c.w); o.h = Math.round(+c.h); }
       if (o.kind === 'image' && videoProvider(o.src)) o.kind = 'video';
+      if (c.main) o.main = 1;
       return o;
     }
     var opener = window.opener;
@@ -1546,8 +1581,10 @@
         st.cands = (Array.isArray(d.items) ? d.items : []).map(sanitize).filter(Boolean).slice(0, 150);
         if (!$('.rb-in-title').value) $('.rb-in-title').value = st.title;
         showSource();
-        var first = -1; for (var i = 0; i < st.cands.length; i++) if (!st.keys.has(candKey(st.cands[i]))) { first = i; break; }
-        st.sel = first >= 0 ? [first] : [];
+        // 主要な画像(ページ本文の大きい画像・ページの動画)を最初から選んでおく。無ければ一番大きいもの
+        st.sel = [];
+        for (var i = 0; i < st.cands.length && st.sel.length < 24; i++) if (st.cands[i].main && !st.keys.has(candKey(st.cands[i]))) st.sel.push(i);
+        if (!st.sel.length) for (var k = 0; k < st.cands.length; k++) if (!st.keys.has(candKey(st.cands[k]))) { st.sel.push(k); break; }
         drawGrid();
       } else if (d.type === 'rb-blob' && pending[d.req]) {
         var p = pending[d.req]; delete pending[d.req];
