@@ -68,6 +68,7 @@ iframe.popup { height: 640px; }
           <div class="row"><button class="btn" id="simPaste">スクショを Ctrl+V で貼り付け</button></div>
           <div class="row"><button class="btn" id="simTab">他のタブの画像をドラッグ</button><button class="btn" id="simUrl">画像URLを Ctrl+V</button></div>
           <div class="row"><button class="btn" id="simYt">YouTubeのURLを Ctrl+V</button></div>
+          <div class="row"><button class="btn" id="simPin">Pinterest にピンが3件増える（翌朝の更新）</button></div>
         </div>
         <ul class="notes">
           <li>模擬の外部サイト: <code>images.example</code> は画像を取得できる（コピー保存可）、<code>pbs.example</code> は取得できない（URL保存になる）、<code>gone.example</code> は削除済みの画像です。</li>
@@ -154,10 +155,33 @@ function res(status, body, headers = {}) { return new Response(typeof body === '
 function attByName(page, name) { for (const a of CF.atts.values()) if (a.page === page && a.name === name && !a.trash) return a; return null; }
 function addAtt(page, name, blob) { const id = String(CF.nextId++); const a = { id, page, name, blob, size: blob.size, type: blob.type, url: URL.createObjectURL(blob), trash: false }; CF.atts.set(id, a); scheduleRender(); return a; }
 
+// ---- 模擬 GitHub(kojing/pinboard の data/pinterest/pinkojing.json)----
+const GH = { version: 1, items: [] };
+function pinItem(n, w, h, kind) {
+  const id = 'p' + (8800000000000 + n);
+  const it = { id, kind: kind || 'image', src: kind === 'video' ? `https://v1.pinimg.com/videos/mc/720p/pin-${n}_${w}x${h}.mp4` : `https://i.pinimg.com/originals/ab/cd/pin-${n}_${w}x${h}.jpg`,
+    w, h, title: '', memo: n % 3 ? '' : '出典: https://dribbble.example/shots/' + n, page: `https://www.pinterest.com/pin/${id.slice(1)}/`, createdAt: new Date(Date.parse('2026-11-01T00:00:00Z') + n * 3.6e6).toISOString() };
+  if (kind === 'video') it.thumb = `https://i.pinimg.com/736x/ab/cd/pin-${n}_${w}x${h}.jpg`;
+  return it;
+}
+function ghReset() { GH.version = 1; GH.items = [pinItem(1, 736, 1104), pinItem(2, 736, 920), pinItem(3, 600, 600), pinItem(4, 720, 1280, 'video'), pinItem(5, 736, 552)]; }
+function ghAddPins(k) { const n0 = GH.items.length + 1; for (let i = 0; i < k; i++) GH.items.push(pinItem(n0 + i, [736, 600, 736][i % 3], [1104, 750, 980][i % 3])); GH.version++; scheduleRender(); }
+async function githubFetch(u, init, who) {
+  const short = 'api.github.com' + u.pathname.replace('/repos/kojing/pinboard/contents', '…');
+  if (!/^\/repos\/kojing\/pinboard\/contents\/data\/pinterest\/pinkojing\.json$/.test(u.pathname)) { addLog(who, 'GET', short, 404); return new Response('{"message":"Not Found"}', { status: 404 }); }
+  const auth = header(init, 'Authorization') || '';
+  if (!/^Bearer (github_pat_|ghp_)/.test(auth) || /bad/i.test(auth)) { addLog(who, 'GET', short, 401); return new Response('{"message":"Bad credentials"}', { status: 401 }); }
+  const etag = `W/"pin-v${GH.version}"`;
+  if (header(init, 'If-None-Match') === etag) { addLog(who, 'GET', short + '（変化なし）', 304); return new Response(null, { status: 304, headers: { ETag: etag } }); }
+  addLog(who, 'GET', short + `（${GH.items.length}件）`, 200);
+  const body = { app: 'reference-board', source: 'pinterest', user: 'pinkojing', exportedAt: new Date(Date.parse('2026-11-24T18:17:00Z') + GH.version * 864e5).toISOString(), boards: [{ name: 'ft', pins: GH.items.length }], items: GH.items };
+  return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json', ETag: etag } });
+}
 async function extFetch(u, init, who) {
   await sleep(80 + Math.random() * 120);
   const host = u.hostname;
   const short = host + u.pathname.slice(0, 28);
+  if (host === 'api.github.com') return githubFetch(u, init, who);
   if (/(^|\.)images\.example$|cdninstagram\.example$/.test(host)) { addLog(who, 'GET', short, 200); return new Response(await pngFromUrl(u.href, 1400), { status: 200, headers: { 'Content-Type': 'image/png' } }); }
   addLog(who, 'GET', short + '（CORSで拒否）', 0);
   throw new TypeError('Failed to fetch');
@@ -348,7 +372,7 @@ function clearBoard() { for (const k of [...CF.props.keys()]) if (k.startsWith('
 let resetting = false;
 async function reset() {
   if (resetting) return; resetting = true;
-  clearBoard(); log.length = 0;
+  clearBoard(); log.length = 0; ghReset();
   try { Object.keys(localStorage).filter((k) => /^rb-/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch {}
   CF.props.set('100|ref-board-data', { value: { schema: 2, shards: SH, tags: TAGS }, version: 1 });
   packShards('100', await sampleItems());
@@ -502,6 +526,12 @@ const CHECKS = [
     ['入力中は反応しない', '検索欄やタイトル欄で e・s・c などを打っても、ショートカットは動きません。'],
     ['詳細・モーダルを開いている間は反応しない', '詳細で e を押しても編集画面に移りません。← → と Esc はボード側で使えます。'],
   ]],
+  ['Pinterest の自動取り込み', [
+    ['トークンを設定して取り込む', 'ボードの「Pinterest」を押し、トークン欄に github_pat_ で始まる文字（模擬なので github_pat_ のあとに20文字以上なら何でも可）を入れて「保存して取り込む」。5件が追加され、ボタンの点が緑になります。'],
+    ['変化がないときは読み込まない', '「ページを開き直す」→ 通信ログの api.github.com が「変化なし 304」になり、何も追加されません（10分以内の開き直しでは確認自体をしません。確かめるときは「Pinterest」→「今すぐ確認」）。'],
+    ['増えたピンだけ追加', '「追加の操作」→「Pinterest にピンが3件増える」→「Pinterest」→「今すぐ確認」で3件だけ追加されます。'],
+    ['トークンが違うとき', 'トークン欄に github_pat_bad_xxxxxxxxxxxxxxxxxxxx と入れると「トークンが無効か期限切れ」と出て、点が赤になります。'],
+  ]],
   ['見る人・場所による制御', [
     ['本人以外は閲覧のみ', '「見ている人」を「他の人」にすると、追加・編集・削除が出ず、ドロップも受け付けません。'],
     ['スペースによる編集の無効化', '「スペース」を PUBLICWIKI にすると、本人でも閲覧のみになります。'],
@@ -534,6 +564,7 @@ $('bOpen').onclick = openMain; $('selUser').onchange = openMain; $('selSpace').o
 $('bReset').onclick = reset; $('b300').onclick = make300; $('bFull').onclick = makeFull;
 $('bBm').onclick = runBookmarklet;
 $('simDrop').onclick = () => simDrop(false); $('simDropBig').onclick = () => simDrop(true);
+$('simPin').onclick = () => { ghAddPins(3); addLog('GitHub', 'PUSH', `Actions が pinkojing.json を更新（${GH.items.length}件）`, 200); };
 $('simPaste').onclick = () => simPaste('image'); $('simUrl').onclick = () => simPaste('url'); $('simYt').onclick = () => simPaste('yt');
 $('simTab').onclick = simTab;
 renderChecks(); reset();

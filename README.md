@@ -37,15 +37,23 @@ Confluence (Server / Data Center) のページに置く、Pinterest 風のリフ
 
 ## Pinterest からの取り込み
 
-GitHub Actions が Pinterest(pinkojing)の ft ボードを毎週読み、`data/pinterest/pinkojing.json` を更新します。
-このJSONをボードの「インポート」に読み込むと、タグなしで取り込まれます(詳しくは `data/pinterest/README.md`)。
+GitHub Actions が Pinterest(pinkojing)の ft ボードを毎日 3:17(日本時間)に読み、`data/pinterest/pinkojing.json` を更新します。
+
+ボードは本人が開いたときにこの JSON を GitHub から読み、増えたピンだけを自動で追加します(ETag で変化がなければ読み込まない。同じブラウザでの確認は10分おき)。
+
+- 最初に一度、ボードの「Pinterest」で GitHub のトークンを設定する(Fine-grained token、対象は `kojing/pinboard` のみ、Contents: Read-only)。トークンは本人のブラウザの localStorage にだけ保存
+- 取り込みの状態(ETag・最後に確認した時刻・件数)はボードの Content Property `ref-board-data` の `pinterest` に保存
+- Pinterest で削除したピンはボードからは消さない
+- 設定は埋め込み HTML の `PINTEREST_SYNC`(null で無効)と `PINTEREST_CHECK_MINUTES`
+
+手動で入れるときは、JSON をボードの「インポート」に読み込みます(詳しくは `data/pinterest/README.md`)。
 
 ## 構成
 
 ```
 pinboard/
 ├─ dist/                              配布物(build.py が作る。Confluence に置くのはここだけ)
-│  ├─ reference-board.js                本体(v1.2.0)
+│  ├─ reference-board.js                本体(v1.3.0)
 │  ├─ reference-board.embed.html        ボードのページの HTML マクロ
 │  ├─ reference-board-quick-add.embed.html  追加専用ページの HTML マクロ(任意)
 │  └─ reference-board-check.html        動作確認ページ(模擬 Confluence)
@@ -60,7 +68,7 @@ pinboard/
 │  ├─ pinkojing.json                    ft ボードのピン一覧(ボードの「インポート」用)
 │  └─ last-run.log                      最後の実行ログ
 ├─ tools/pinterest-export.mjs         Pinterest の書き出しスクリプト
-├─ .github/workflows/pinterest-export.yml  毎週月曜 3:17(日本時間)と手動で実行
+├─ .github/workflows/pinterest-export.yml  毎日 3:17(日本時間)と手動で実行
 ├─ test/                              Playwright の操作シナリオ
 └─ build.py                           src/ → dist/
 ```
@@ -70,7 +78,7 @@ pinboard/
 ```
 Web のページ ──ブックマークレット──┐
 PC の画像 ──ドロップ / Ctrl+V ────┼─→ ボード(Confluence のページ)
-Pinterest ft ─Actions(毎週)→ data/pinterest/pinkojing.json ─インポート─┘
+Pinterest ft ─Actions(毎日)→ data/pinterest/pinkojing.json ─開いたとき自動─┘
                                      │
                情報: Content Property ref-board-data-00〜63
                画像: ページの添付 rb-<ID>.<拡張子>(URL 保存のものは外部 URL)
@@ -91,6 +99,7 @@ Pinterest ft ─Actions(毎週)→ data/pinterest/pinkojing.json ─インポー
 | `test/t7.py` | 64分割での取り込みと読み直し |
 | `test/t8.py` | Confluence のショートカットとの共存 |
 | `test/t9.py` | 追加画面の見た目(ヘッダー等を隠す)と主要画像の選択 |
+| `test/t10.py` | Pinterest の自動取り込み(トークン、変化なし、増分、閲覧のみ) |
 
 ## 開発
 

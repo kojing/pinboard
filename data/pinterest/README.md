@@ -1,6 +1,6 @@
 # Pinterest の書き出し
 
-`pinkojing.json` は GitHub Actions(`.github/workflows/pinterest-export.yml`)が毎週更新します。
+`pinkojing.json` は GitHub Actions(`.github/workflows/pinterest-export.yml`)が毎日 3:17(日本時間)に更新し、ボードを開いたときに自動で取り込まれます。
 すぐ更新したいときは Actions の「Pinterest を書き出す」→ Run workflow。
 
 - 対象は ft ボードだけです(ほかのボードは Run workflow の boards にボード名をカンマ区切り、全部なら *)

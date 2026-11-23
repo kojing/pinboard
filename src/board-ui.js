@@ -24,6 +24,7 @@
         '<span class="rb-spacer"></span>' +
         '<div class="rb-actions" hidden>' +
           '<button type="button" class="rb-btn rb-b-bm">' + ICON.bookmark + '<span>ブックマークレット</span></button>' +
+          '<button type="button" class="rb-btn rb-b-pin" hidden><i class="rb-pin-dot"></i><span>Pinterest</span></button>' +
           '<button type="button" class="rb-btn rb-b-import">' + ICON.importI + '<span>インポート</span></button>' +
           '<button type="button" class="rb-btn rb-b-export">' + ICON.exportI + '<span>エクスポート</span></button>' +
           '<div class="rb-menu-wrap">' +
@@ -86,6 +87,7 @@
     els.file.addEventListener('change', function () { var f = Array.prototype.slice.call(els.file.files || []); els.file.value = ''; if (f.length) addFiles(f); });
     app.querySelector('.rb-b-bm').addEventListener('click', openBookmarkletModal);
     app.querySelector('.rb-b-import').addEventListener('click', openImportModal);
+    app.querySelector('.rb-b-pin').addEventListener('click', openPinterestModal);
     app.querySelector('.rb-b-export').addEventListener('click', exportJson);
 
     // カード
@@ -122,6 +124,7 @@
       if (state.isOwner) enableDrop();
       setStatus(state.items.length ? '' : (state.isOwner ? '' : 'まだリファレンスがありません'));
       renderTags(); render(); renderFoot();
+      if (state.isOwner && CONFIG.PINTEREST_SYNC) { app.querySelector('.rb-b-pin').hidden = false; drawPinDot(); pinterestSync(false); }
     }).catch(function (err) {
       console.error(err);
       setStatus('読み込みに失敗しました: ' + err.message, true);
@@ -170,10 +173,11 @@
     return state.store.sync(state.items, state.tags).then(function () {
       setStatus(''); renderFoot(); state.loadedAt = Date.now();
       if (msg) showToast(msg);
+      return true;
     }).catch(function (err) {
       console.error(err);
       setStatus('保存に失敗しました: ' + String(err.message).replace('不要なリンク', '不要なリファレンス'), true);
-      return state.store.load().then(function (d) { applyData(d); renderTags(); render(); renderFoot(); });
+      return state.store.load().then(function (d) { applyData(d); renderTags(); render(); renderFoot(); return false; }, function () { return false; });
     });
   }
   // 情報の保存領域(分割数×30,000バイト)がほぼいっぱいなら、画像を添付する前に止める
@@ -748,22 +752,141 @@
       try { raw = JSON.parse(text.value); } catch (e) { return modalError('JSONとして読めませんでした: ' + e.message); }
       var list = Array.isArray(raw) ? raw : raw && Array.isArray(raw.items) ? raw.items : null;
       if (!list) return modalError('配列、または {"items": [...]} の形にしてください');
-      var keys = new Set(state.items.map(keyOf)), ids = new Set(state.items.map(function (x) { return x.id; }));
-      var add = [], skip = 0, bad = 0;
-      list.forEach(function (r) {
-        var it = normalizeItem(r);
-        if (!it) { bad++; return; }
-        if (keys.has(keyOf(it))) { skip++; return; }
-        if (ids.has(it.id)) it.id = uid();
-        keys.add(keyOf(it)); ids.add(it.id); add.push(it);
-      });
-      if (raw && Array.isArray(raw.tags)) raw.tags.forEach(function (t) { if (typeof t === 'string' && t && state.tags.indexOf(t) < 0) state.tags.push(t); });
-      add.forEach(function (it) { it.tags.forEach(function (t) { if (state.tags.indexOf(t) < 0) state.tags.push(t); }); });
-      add.sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
-      state.items = state.items.concat(add);
-      state.items.sort(function (a, b) { return String(a.createdAt || '').localeCompare(String(b.createdAt || '')); });
+      var m = mergeItems(raw, list);
+      if (m.add.length && !roomFor(m.add.length)) return modalError(FULL_MSG);
+      applyMerge(m);
       closeModal();
-      persist(add.length + '件を取り込みました' + (skip ? '(重複 ' + skip + '件をスキップ)' : '') + (bad ? '(読めない ' + bad + '件)' : ''));
+      persist(m.add.length + '件を取り込みました' + (m.skip ? '(重複 ' + m.skip + '件をスキップ)' : '') + (m.bad ? '(読めない ' + m.bad + '件)' : ''));
+    };
+  }
+  // JSON の項目のうち、ボードにまだ無いものだけを選ぶ(同じ画像URL・同じ添付・同じIDは重複)
+  function mergeItems(raw, list) {
+    var from = raw && raw.source === 'pinterest' ? 'pinterest' : '';
+    var keys = new Set(state.items.map(keyOf)), ids = new Set(state.items.map(function (x) { return x.id; }));
+    var add = [], skip = 0, bad = 0;
+    list.forEach(function (r) {
+      var it = normalizeItem(r);
+      if (!it) { bad++; return; }
+      if (from) it.from = from;
+      if (keys.has(keyOf(it)) || (from && ids.has(it.id))) { skip++; return; }
+      if (ids.has(it.id)) it.id = uid();
+      keys.add(keyOf(it)); ids.add(it.id); add.push(it);
+    });
+    return { add: add, skip: skip, bad: bad, tags: raw && Array.isArray(raw.tags) ? raw.tags : [] };
+  }
+  function applyMerge(m) {
+    m.tags.forEach(function (t) { if (typeof t === 'string' && t && state.tags.indexOf(t) < 0) state.tags.push(t); });
+    m.add.forEach(function (it) { it.tags.forEach(function (t) { if (state.tags.indexOf(t) < 0) state.tags.push(t); }); });
+    state.items = state.items.concat(m.add);
+    state.items.sort(function (a, b) { return String(a.createdAt || '').localeCompare(String(b.createdAt || '')); });
+  }
+
+  // ---------------- Pinterest の自動取り込み ----------------
+  // GitHub Actions が毎日 data/pinterest/pinkojing.json を更新する。ボードを本人が開いたとき、それが前回から
+  // 変わっていれば(ETag で確かめる)読み込み、ボードに無いピンだけを足す。Pinterest で消したピンはボードからは消さない。
+  // GitHub のトークン(Contents: 読み取りのみ)は本人のブラウザ(localStorage)にだけ保存する。
+  var PIN_TOKEN_KEY = 'rb-gh-token';
+  function pinState() { var m = state.store && state.store.meta() || {}; return m.pinterest && typeof m.pinterest === 'object' ? m.pinterest : {}; }
+  function pinUrl() {
+    var c = CONFIG.PINTEREST_SYNC;
+    return 'https://api.github.com/repos/' + c.repo + '/contents/' + String(c.path).split('/').map(encodeURIComponent).join('/') + '?ref=' + encodeURIComponent(c.ref || 'main');
+  }
+  var pinRun = null, pinLast = { state: '', msg: '' };
+  function drawPinDot() {
+    var b = els.app.querySelector('.rb-b-pin'); if (!b) return;
+    var s = !lsGet(PIN_TOKEN_KEY) ? 'off' : pinLast.state || 'ok';
+    b.setAttribute('data-state', s);
+    b.title = s === 'off' ? 'Pinterest の自動取り込みは未設定です' : s === 'err' ? pinLast.msg : s === 'busy' ? 'Pinterest を確認中…' : 'Pinterest の自動取り込み: ' + (pinLast.msg || '有効');
+  }
+  function pinterestSync(force) {
+    if (pinRun) return pinRun;
+    var token = lsGet(PIN_TOKEN_KEY);
+    if (!token) { drawPinDot(); return Promise.resolve({ skipped: true }); }
+    var checkedKey = 'rb-pin-checked:' + PAGE_ID;
+    if (!force && Date.now() - (+lsGet(checkedKey) || 0) < (CONFIG.PINTEREST_CHECK_MINUTES || 10) * 60000) { drawPinDot(); return Promise.resolve({ skipped: true }); }
+    pinLast = { state: 'busy', msg: '' }; drawPinDot();
+    pinRun = (async function () {
+      var ps = pinState();
+      var h = { Accept: 'application/vnd.github.raw', Authorization: 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28' };
+      if (!force && ps.etag) h['If-None-Match'] = ps.etag;
+      var r;
+      try { r = await fetch(pinUrl(), { headers: h, cache: 'no-store', credentials: 'omit' }); }
+      catch (e) { throw new Error('GitHub に接続できませんでした(社内ネットワークから api.github.com に届くか確認してください)'); }
+      lsSet(checkedKey, String(Date.now()));
+      if (r.status === 304) return { added: 0, unchanged: true };
+      if (r.status === 401) throw new Error('GitHub のトークンが無効か期限切れです。「Pinterest」から設定し直してください');
+      if (r.status === 403 || r.status === 404) throw new Error('GitHub の ' + CONFIG.PINTEREST_SYNC.repo + ' を読めません(トークンの対象リポジトリと権限 Contents: Read を確認してください。HTTP ' + r.status + ')');
+      if (!r.ok) throw new Error('GitHub から読み込めませんでした HTTP ' + r.status);
+      var raw = await r.json();
+      var list = raw && Array.isArray(raw.items) ? raw.items : null;
+      if (!list) throw new Error('Pinterest の JSON の形が違います');
+      var etag = r.headers.get('ETag') || '';
+      var m = mergeItems(raw, list);
+      if (m.add.length && !roomFor(m.add.length)) throw new Error('Pinterest に新しいピンが ' + m.add.length + ' 件ありますが、' + FULL_MSG);
+      if (m.add.length) {
+        applyMerge(m);
+        var ok = await persist('Pinterest から ' + m.add.length + ' 件を追加しました');
+        if (!ok) throw new Error('Pinterest の取り込みを保存できませんでした');
+      }
+      await state.store.mutateMeta(function (meta) {
+        meta.pinterest = { etag: etag, exportedAt: String(raw.exportedAt || ''), syncedAt: new Date().toISOString(), total: list.length, added: m.add.length };
+      });
+      return { added: m.add.length, total: list.length };
+    })().then(function (res) {
+      var ps = pinState();
+      pinLast = { state: 'ok', msg: ps.syncedAt ? fmtDateTime(ps.syncedAt) + ' に確認' + (res.added ? '・' + res.added + '件追加' : '') : '有効' };
+      return res;
+    }, function (err) {
+      console.error(err);
+      pinLast = { state: 'err', msg: err.message };
+      if (force) throw err;
+      showToast(err.message, true);
+      return { error: err.message };
+    }).finally(function () { pinRun = null; drawPinDot(); });
+    return pinRun;
+  }
+  function fmtDateTime(iso) { var d = new Date(iso); return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function openPinterestModal() {
+    var c = CONFIG.PINTEREST_SYNC, ps = pinState(), has = !!lsGet(PIN_TOKEN_KEY);
+    var fromPin = state.items.filter(function (x) { return x.from === 'pinterest' || /^p\d/.test(x.id); }).length;
+    openModal(
+      '<div class="rb-mhead"><h3>Pinterest の自動取り込み</h3><p>GitHub の <code>' + esc(c.repo) + '</code> にある <code>' + esc(c.path) + '</code>(毎日 3:17 ごろ更新)を、このボードを開いたときに確かめて、増えたピンだけを追加します。</p></div>' +
+      '<div class="rb-mbody">' +
+        '<dl class="rb-pin-st">' +
+          '<dt>状態</dt><dd>' + (has ? (pinLast.state === 'err' ? '<b class="is-err">エラー</b> ' + esc(pinLast.msg) : '<b class="is-ok">有効</b>') : '<b>未設定</b>(このブラウザにトークンがありません)') + '</dd>' +
+          '<dt>最後に確認</dt><dd>' + (ps.syncedAt ? esc(fmtDateTime(ps.syncedAt)) + (ps.added ? '(' + ps.added + '件追加)' : '(追加なし)') : '—') + '</dd>' +
+          '<dt>JSON の更新</dt><dd>' + (ps.exportedAt ? esc(fmtDateTime(ps.exportedAt)) + '・' + (ps.total || 0) + '件' : '—') + '</dd>' +
+          '<dt>ボード内の Pinterest</dt><dd>' + fromPin + '件</dd>' +
+        '</dl>' +
+        '<label class="rb-field"><span>GitHub のトークン' + (has ? '(設定済み。変えるときだけ入力)' : '') + '</span><input type="password" class="rb-in rb-pin-token" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>' +
+        '<ul class="rb-note-list">' +
+          '<li>GitHub の Settings → Developer settings → Fine-grained tokens で作成します。Repository access は <code>' + esc(c.repo) + '</code> だけ、Permissions は Contents の Read-only だけにしてください。</li>' +
+          '<li>トークンはこのブラウザにだけ保存され、Confluence には保存されません。別の PC では設定し直します。</li>' +
+          '<li>Pinterest で削除したピンは、ボードからは消えません。</li>' +
+        '</ul>' +
+      '</div>' +
+      '<div class="rb-mfoot">' + (has ? '<button type="button" class="rb-btn rb-btn-danger rb-pin-clear">トークンを消す</button>' : '') +
+        '<span class="rb-spacer"></span><button type="button" class="rb-btn rb-m-cancel">閉じる</button><button type="button" class="rb-btn rb-btn-primary rb-m-save">' + (has ? '今すぐ確認' : '保存して取り込む') + '</button></div>', true);
+    var input = els.modal.querySelector('.rb-pin-token'), save = els.modal.querySelector('.rb-m-save');
+    input.addEventListener('input', function () { save.textContent = input.value.trim() ? '保存して取り込む' : (has ? '今すぐ確認' : '保存して取り込む'); });
+    els.modal.querySelector('.rb-m-cancel').onclick = closeModal;
+    var clr = els.modal.querySelector('.rb-pin-clear');
+    if (clr) clr.onclick = function () { lsSet(PIN_TOKEN_KEY, null); pinLast = { state: '', msg: '' }; drawPinDot(); closeModal(); showToast('このブラウザのトークンを消しました'); };
+    save.onclick = async function () {
+      var t = input.value.trim();
+      if (t) {
+        if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(t)) return modalError('GitHub のトークンの形ではありません(github_pat_ で始まる文字列)');
+        lsSet(PIN_TOKEN_KEY, t);
+      } else if (!lsGet(PIN_TOKEN_KEY)) return modalError('トークンを入力してください');
+      save.disabled = true; save.textContent = '確認中…'; state.busy = true;
+      try {
+        var res = await pinterestSync(true);
+        state.busy = false; closeModal();
+        showToast(res.added ? 'Pinterest から ' + res.added + ' 件を追加しました' : 'Pinterest の新しいピンはありません(' + res.total + '件すべて取り込み済み)');
+      } catch (err) {
+        state.busy = false; save.disabled = false; save.textContent = '保存して取り込む';
+        modalError(err.message);
+      }
     };
   }
 

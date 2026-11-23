@@ -1,5 +1,5 @@
 /*!
- * リファレンスボード for Confluence (Server / Data Center) — v1.2.0
+ * リファレンスボード for Confluence (Server / Data Center) — v1.3.0
  *
  * Pinterest のように画像・動画のリファレンスを集めて眺めるボード。
  *
@@ -18,6 +18,8 @@
  * 追加の方法(本人のみ)
  *   - 画像ファイルをボードにドラッグ&ドロップ / Ctrl+V で貼り付け / 「追加」→「ファイルを選ぶ」
  *   - 他のタブの画像をボードにドラッグ、または「追加」→「URLで追加」(YouTube・Vimeo・mp4 も可)
+ *   - Pinterest: GitHub(kojing/pinboard)の data/pinterest/pinkojing.json を、ボードを開いたときに自動で取り込む
+ *     (Actions が毎日更新。GitHub のトークンは本人のブラウザに保存)
  *   - ブックマークレット: 見ているページの画像・動画を選んで追加(?rb_add=1 で開く追加画面)
  *
  * 権限: /rest/api/user/current のユーザー名が OWNER_USERNAME と一致するときだけ編集UIを表示する。
@@ -26,11 +28,13 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.2.0';
+  var VERSION = '1.3.0';
   var CONFIG = {
     OWNER_USERNAME: '',                 // 自分のConfluenceユーザー名(一致する人だけ編集UIを表示)
     TARGET_PAGE_ID: '',                 // 保存先ページのID。空なら今開いているページ(追加専用ページから使うときに指定)
     PROPERTY_KEY: 'ref-board-data',     // 索引のキー。本体は <KEY>-00〜 に分割保存(通常は変更しない)
+    PINTEREST_SYNC: { repo: 'kojing/pinboard', path: 'data/pinterest/pinkojing.json', ref: 'main' }, // ボードを開いたとき GitHub から自動で取り込む元。null で使わない
+    PINTEREST_CHECK_MINUTES: 10,        // 自動取り込みを確かめる間隔(同じブラウザで開き直したとき)
     SHARDS: 64,                         // 分割数(1個30,000バイト)。64で約1.9MB・Pinterestの画像で約4,500件。最大99。増やすのはよいが減らさない
     QUICK_ADD_PAGE_URL: '',             // 追加用ポップアップページのURL(空ならボードのページで追加画面を開く)
     DEFAULT_TAGS: ['UI', 'モーション', '質感・マテリアル', 'タイポグラフィ', '配色', 'エフェクト', 'キャラクター', '背景・美術', '写真'],
@@ -252,6 +256,7 @@
     if (+x.w > 0 && +x.h > 0) { it.w = Math.round(+x.w); it.h = Math.round(+x.h); }
     if (/^#[0-9a-f]{6}$/i.test(x.c || '')) it.c = x.c;
     if (x.gif) it.gif = true;
+    if (typeof x.from === 'string' && /^[a-z]{1,20}$/.test(x.from)) it.from = x.from;
     return it;
   }
   function thumbOf(it, pageId) {

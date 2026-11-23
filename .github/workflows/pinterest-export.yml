@@ -11,7 +11,7 @@ on:
         description: ボード名(カンマ区切り、* で全部)
         default: ft
   schedule:
-    - cron: '17 18 * * 0'   # 毎週月曜 3:17(日本時間)
+    - cron: '17 18 * * *'   # 毎日 3:17(日本時間)
   push:
     branches: [main]
     paths:
